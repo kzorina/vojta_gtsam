@@ -53,22 +53,28 @@ def add_noise_to_measurement(measurement, noise):
     noisy_measurements = np.random.multivariate_normal(np.hstack((odometry_rpy,odometry_xyz)), noise.covariance())
     return(gtsam.Pose3(gtsam.Rot3.RzRyRx(noisy_measurements[:3]), noisy_measurements[3:6].reshape(-1,1)))
 
+def add_noise_to_measurement_wrt_frame(measurement, noise, frame):
+    odometry_xyz = (measurement.x(), measurement.y(), measurement.z())
+    odometry_rpy = measurement.rotation().rpy()
+    noisy_measurements = np.random.multivariate_normal(np.hstack((odometry_rpy,odometry_xyz)), noise.covariance())
+    return(gtsam.Pose3(gtsam.Rot3.RzRyRx(noisy_measurements[:3]), noisy_measurements[3:6].reshape(-1,1)))
+
 def Pose3_ISAM2_example():
     """Perform 3D SLAM given ground truth poses as well as simple
     loop closure detection."""
     plt.ion()
 
     # Declare the 3D translational standard deviations of the prior factor's Gaussian model, in meters.
-    prior_xyz_sigma = 0.2
+    prior_xyz_sigma = 0.01
 
     # Declare the 3D rotational standard deviations of the prior factor's Gaussian model, in degrees.
-    prior_rpy_sigma = 10
+    prior_rpy_sigma = 0.01
 
     # Declare the 3D translational standard deviations of the odometry factor's Gaussian model, in meters.
-    odometry_xyz_sigma = 0.2
+    odometry_xyz_sigma = 2
 
     # Declare the 3D rotational standard deviations of the odometry factor's Gaussian model, in degrees.
-    odometry_rpy_sigma = 10
+    odometry_rpy_sigma = 0.01
 
     # Although this example only uses linear measurements and Gaussian noise models, it is important
     # to note that iSAM2 can be utilized to its full potential during nonlinear optimization. This example
@@ -79,6 +85,7 @@ def Pose3_ISAM2_example():
                                                                 prior_xyz_sigma,
                                                                 prior_xyz_sigma,
                                                                 prior_xyz_sigma]))
+
     ODOMETRY_NOISE = gtsam.noiseModel.Diagonal.Sigmas(np.array([odometry_rpy_sigma*np.pi/180,
                                                                 odometry_rpy_sigma*np.pi/180,
                                                                 odometry_rpy_sigma*np.pi/180,
@@ -86,12 +93,19 @@ def Pose3_ISAM2_example():
                                                                 odometry_xyz_sigma,
                                                                 odometry_xyz_sigma]))
 
-    LANDMARK_NOISE = gtsam.noiseModel.Diagonal.Sigmas(np.array([odometry_rpy_sigma*np.pi/180,
+    LANDMARK_NOISE:gtsam.noiseModel.Diagonal = gtsam.noiseModel.Diagonal.Sigmas(np.array([odometry_rpy_sigma*np.pi/180,
                                                                 odometry_rpy_sigma*np.pi/180,
                                                                 odometry_rpy_sigma*np.pi/180,
-                                                                odometry_xyz_sigma/10,
-                                                                odometry_xyz_sigma/10,
-                                                                odometry_xyz_sigma]))
+                                                                odometry_xyz_sigma/5,
+                                                                odometry_xyz_sigma*2,
+                                                                odometry_xyz_sigma/5]))
+    # FALSE_LANDMARK_NOISE = gtsam.noiseModel.
+
+    # PRIOR_NOISE = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
+    #
+    # ODOMETRY_NOISE = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
+    #
+    # LANDMARK_NOISE = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
 
     # Create a Nonlinear factor graph as well as the data structure to hold state estimates.
     graph = gtsam.NonlinearFactorGraph()
@@ -143,14 +157,35 @@ def Pose3_ISAM2_example():
 
         for l in range(len(true_landmarks)):
             landmark_key = V(l)
-
+            a = true_poses[i - 1]
+            b = true_landmarks[l]
             landmark_tf = true_poses[i - 1].transformPoseTo(true_landmarks[l])
-            noisy_landmark_tf = add_noise_to_measurement(landmark_tf, ODOMETRY_NOISE)
+
+            # landmark_tf = true_landmarks[l].transformPoseTo(true_poses[i - 1])
+            noisy_landmark_tf = add_noise_to_measurement(landmark_tf, LANDMARK_NOISE)
+            noisy_landmark_tf = landmark_tf
+            # noisy_landmark_tf = add_noise_to_measurement(landmark_tf, FALSE_LANDMARK_NOISE)
 
 
-            #graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, noisy_landmark_tf, ODOMETRY_NOISE))
-            tf = gtsam.Unit3(np.array((noisy_landmark_tf.x(), noisy_landmark_tf.y(), noisy_landmark_tf.z())))
-            graph.add(gtsam.BearingRangeFactor3D(previous_key, landmark_key, noisy_landmark_tf, 2, ODOMETRY_NOISE))
+           # gRp @ pPp @ gRp.T
+            old_cov = LANDMARK_NOISE.covariance()
+
+            my_cov = np.array([[0.0001, 0, 0, 0, 0, 0],
+                               [0, 0.0001, 0, 0, 0, 0],
+                               [0, 0, 0.0001, 0, 0, 0],
+                               [0, 0, 0, 0.2, 0, 0],
+                               [0, 0, 0, 0, 0.2, 0],
+                               [0, 0, 0, 0, 0, 32]])
+            gRp = landmark_tf.rotation().matrix()
+            P = my_cov[3:6, 3:6]
+            transformed_cov = gRp.T @ P @ gRp
+            my_cov[3:6, 3:6] = transformed_cov
+            noise: gtsam.noiseModel.Gaussian = gtsam.noiseModel.Gaussian.Covariance(my_cov)
+            cov = noise.covariance()
+
+            graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, noisy_landmark_tf, noise))
+            # tf = gtsam.Unit3(np.array((noisy_landmark_tf.x(), noisy_landmark_tf.y(), noisy_landmark_tf.z())))
+            # graph.add(gtsam.BearingRangeFactor3D(previous_key, landmark_key, noisy_landmark_tf, 2, ODOMETRY_NOISE))
             gt_dict[str(Symbol(landmark_key).string())] = true_landmarks[l]
             if landmark_key not in detected_landmarks:
                 detected_landmarks.add(landmark_key)

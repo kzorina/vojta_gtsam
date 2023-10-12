@@ -3,11 +3,13 @@ import matplotlib.pyplot as plt
 import gtsam
 import gtsam.utils.plot as gtsam_plot
 from gtsam import Symbol
+import numpy as np
 
-
+np.set_printoptions(precision=3)
+count = 0
 def draw_3d_estimate(graph: gtsam.NonlinearFactorGraph, current_estimate: gtsam.Values, lines=True):
     """Display the current estimate of a factor graph"""
-
+    global count
     # Compute the marginals for all states in the graph.
     marginals = gtsam.Marginals(graph, current_estimate)
 
@@ -21,8 +23,11 @@ def draw_3d_estimate(graph: gtsam.NonlinearFactorGraph, current_estimate: gtsam.
 
     for i in graph.keyVector():
         current_pose = current_estimate.atPose3(i)
-        gtsam_plot.plot_pose3(0, current_pose, 10,
-                                marginals.marginalCovariance(i))
+        # cg = graph.at(i)
+        name = str(Symbol(i).string())
+        c = marginals.marginalCovariance(i)
+        gtsam_plot.plot_pose3(0, current_pose, 10, marginals.marginalCovariance(i))
+        print(str(Symbol(i).string()), marginals.marginalCovariance(i))
         axes.text(current_pose.x(), current_pose.y(), current_pose.z(), str(Symbol(i).string()), fontsize=15)
 
     if lines:
@@ -41,4 +46,6 @@ def draw_3d_estimate(graph: gtsam.NonlinearFactorGraph, current_estimate: gtsam.
     axes.set_xlim3d(ranges[0], ranges[1])
     axes.set_ylim3d(ranges[0], ranges[1])
     axes.set_zlim3d(ranges[0], ranges[1])
+    fig.savefig(f'{count}.png')
+    count += 1
     plt.pause(1)
