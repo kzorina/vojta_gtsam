@@ -48,4 +48,4 @@ def draw_3d_estimate(graph: gtsam.NonlinearFactorGraph, current_estimate: gtsam.
     axes.set_zlim3d(ranges[0], ranges[1])
     fig.savefig(f'{count}.png')
     count += 1
-    plt.pause(1)
+    plt.pause(2)
