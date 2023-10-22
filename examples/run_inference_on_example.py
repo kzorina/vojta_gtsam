@@ -19,6 +19,7 @@ import torch
 from bokeh.io import export_png
 from bokeh.plotting import gridplot
 from PIL import Image
+import pickle
 
 # from happypose.pose_estimators.cosypose.cosypose.config import LOCAL_DATA_DIR
 from happypose.pose_estimators.cosypose.cosypose.utils.cosypose_wrapper import (
@@ -81,28 +82,14 @@ logger = get_logger(__name__)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def load_observation(
-    example_dir: Path,
-    load_depth: bool = False,
-) -> Tuple[np.ndarray, Union[None, np.ndarray], CameraData]:
-    camera_data = CameraData.from_json((example_dir / "camera_data.json").read_text())
-
-    rgb = np.array(Image.open(example_dir / "image_rgb.png"), dtype=np.uint8)
+def load_observation(dataset_dir: Path, img_path) -> Tuple[np.ndarray, Union[None, np.ndarray], CameraData]:
+    camera_data = CameraData.from_json((dataset_dir / "camera_data.json").read_text())
+    rgb = np.array(Image.open(img_path), dtype=np.uint8)
     assert rgb.shape[:2] == camera_data.resolution
-
     depth = None
-    if load_depth:
-        depth = np.array(Image.open(example_dir / "image_depth.png"), dtype=np.float32) / 1000
-        assert depth.shape[:2] == camera_data.resolution
-
     return rgb, depth, camera_data
 
-
-def load_observation_tensor(
-    example_dir: Path,
-    load_depth: bool = False,
-) -> ObservationTensor:
-    rgb, depth, camera_data = load_observation(example_dir, load_depth)
+def data_to_observation(rgb, depth, camera_data) -> ObservationTensor:
     observation = ObservationTensor.from_numpy(rgb, depth, camera_data.K)
     if torch.cuda.is_available():
         observation.cuda()
@@ -126,13 +113,13 @@ def make_object_dataset(example_dir: Path) -> RigidObjectDataset:
     return rigid_object_dataset
 
 
-def rendering(predictions, example_dir):
-    object_dataset = make_object_dataset(example_dir)
+def rendering(predictions, dataset_dir):
+    object_dataset = make_object_dataset(dataset_dir)
 
     labels = predictions.infos["label"]
     idxs = predictions.infos["coarse_instance_idx"]
     # rendering
-    camera_data = CameraData.from_json((example_dir / "camera_data.json").read_text())
+    camera_data = CameraData.from_json((dataset_dir / "camera_data.json").read_text())
     object_labels = [object_dataset.list_objects[i].label for i in range(len(object_dataset.list_objects))]
     camera_data.TWC = Transform(np.eye(4))
     renderer = Panda3dSceneRenderer(object_dataset)
@@ -161,63 +148,58 @@ def rendering(predictions, example_dir):
     return renderings
 
 
-def save_predictions(example_dir, renderings):
-    rgb_render = renderings.rgb
-    rgb, _, _ = load_observation(example_dir, load_depth=False)
-    # render_prediction_wrt_camera calls BulletSceneRenderer.render_scene using only one camera at pose Identity and return only rgb values
-    # BulletSceneRenderer.render_scene: gets a "object list" (prediction like object), a list of camera infos (with Km pose, res) and renders
-    # a "camera observation" for each camera/viewpoint
-    # Actually, renders: rgb, mask, depth, near, far
-    #rgb_render = render_prediction_wrt_camera(renderer, preds, cam)
+def save_prediction_img(output_path, img_name, rgb, rgb_render):
     mask = ~(rgb_render.sum(axis=-1) == 0)
-    alpha = 0.1
     rgb_n_render = rgb.copy()
     rgb_n_render[mask] = rgb_render[mask]
 
-    # make the image background a bit fairer than the render
     rgb_overlay = np.zeros_like(rgb_render)
     rgb_overlay[~mask] = rgb[~mask] * 0.4 + 255 * 0.6
     rgb_overlay[mask] = rgb_render[mask] * 0.9 + 255 * 0.1
-    plotter = BokehPlotter()
-    comparisson_img = cv2.cvtColor(np.concatenate((rgb, rgb_overlay), axis=1), cv2.COLOR_BGR2RGB)
+    comparison_img = cv2.cvtColor(np.concatenate((rgb, rgb_overlay), axis=1), cv2.COLOR_BGR2RGB)
+    cv2.imwrite(str(output_path/img_name), comparison_img)
 
-    cv2.imwrite('rgb_overlay.png', rgb_overlay)
-    cv2.imwrite('rgb.png', rgb)
-    cv2.imwrite('comparisson_img.png', comparisson_img)
-    time.sleep(1)
-    cv2.imshow('comparisson_img', comparisson_img)
-    cv2.waitKey(0)
+def save_preditions_data(output_path, all_predictions):
+    frames = []
+    for predictions in all_predictions:
+        entry = {}
+        poses_tensor:torch.Tensor= predictions.tensors["poses"]
+        for idx, label in enumerate(predictions.infos["label"]):
+            pose = poses_tensor[idx].numpy()
+            obj_name = YCBV_OBJECT_NAMES[label.split("-")[1]]
+            entry[obj_name] = pose
+        frames.append(entry)
+    with open(output_path, 'ab') as file:
+        pickle.dump(frames, file)
+    print(f"data saved to {output_path}")
+    return frames
 
 
-def run_inference(
-    example_dir: Path,
-    model_name: str,
-    dataset_to_use: str,
-) -> None:
-    observation = load_observation_tensor(example_dir)
-    # TODO: remove this wrapper from code base
+def run_inference(dataset_dir: Path, dataset_to_use: str) -> None:
+
+    img_names = sorted(os.listdir(dataset_dir / "frames"))
     CosyPose = CosyPoseWrapper(dataset_name=dataset_to_use, n_workers=8)
-    predictions = CosyPose.inference(observation)
-    renderings = rendering(predictions, example_dir)
-    save_predictions(example_dir, renderings)
+    start_time = time.time()
 
+    all_predictions = []
+    for img_name in img_names:
+        img_path = dataset_dir / "frames" / img_name
+        rgb, depth, camera_data = load_observation(dataset_dir, img_path)
+        observation = data_to_observation(rgb, depth, camera_data)
+        inference_time_start = time.time()
+        predictions = CosyPose.inference(observation)
+        print(f"inference successfully. {(time.time() - inference_time_start):9.4f}s")
+        renderings = rendering(predictions, dataset_dir)
+        save_prediction_img(dataset_dir / "output", img_name, rgb, renderings.rgb)
+        all_predictions.append(predictions)
+    save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
+    print(f"runtime: {time.time() - start_time}s for {len(img_names)} images")
+
+def main():
+    set_logging_level("info")
+    dataset_name = "crackers_new"
+    dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
+    run_inference(dataset_path, "ycbv")
 
 if __name__ == "__main__":
-    set_logging_level("info")
-    parser = argparse.ArgumentParser()
-    parser.add_argument("example_name")
-    # parser.add_argument("--model", type=str, default="megapose-1.0-RGB-multi-hypothesis")
-    parser.add_argument("--dataset", type=str, default="ycbv")
-    #parser.add_argument("--vis-detections", action="store_true")
-    parser.add_argument("--run-inference", action="store_true", default=True)
-    #parser.add_argument("--vis-outputs", action="store_true")
-    args = parser.parse_args()
-
-    # data_dir = os.getenv("HAPPYPOSE_DATA_DIR")
-    # assert data_dir
-    example_dir = Path(__file__).parent.parent / "datasets" / args.example_name
-    dataset_to_use = args.dataset  # tless or ycbv
-
-
-    if args.run_inference:
-        run_inference(example_dir, None, dataset_to_use)
+    main()

@@ -26,7 +26,7 @@ def draw_3d_estimate(graph: gtsam.NonlinearFactorGraph, current_estimate: gtsam.
         # cg = graph.at(i)
         name = str(Symbol(i).string())
         c = marginals.marginalCovariance(i)
-        gtsam_plot.plot_pose3(0, current_pose, 10, marginals.marginalCovariance(i))
+        gtsam_plot.plot_pose3(0, current_pose, 0.2, marginals.marginalCovariance(i))
         print(str(Symbol(i).string()), marginals.marginalCovariance(i))
         axes.text(current_pose.x(), current_pose.y(), current_pose.z(), str(Symbol(i).string()), fontsize=15)
 
@@ -42,10 +42,10 @@ def draw_3d_estimate(graph: gtsam.NonlinearFactorGraph, current_estimate: gtsam.
                 axes.plot(xs=[s_pose.x(), e_pose.x()], ys=[s_pose.y(), e_pose.y()], zs=[s_pose.z(), e_pose.z()], color="purple")
         # print(str(Symbol(i).string()), current_estimate.atPose3(i))
 
-    ranges = (-30, 30)
+    ranges = (-0.8, 0.8)
     axes.set_xlim3d(ranges[0], ranges[1])
     axes.set_ylim3d(ranges[0], ranges[1])
     axes.set_zlim3d(ranges[0], ranges[1])
     fig.savefig(f'{count}.png')
     count += 1
-    plt.pause(2)
+    plt.pause(0.5)
