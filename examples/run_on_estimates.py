@@ -26,6 +26,25 @@ from Vizualize import draw_3d_estimate
 import pickle
 from pathlib import Path
 
+def load_data(path):
+    with open(path, 'rb') as file:
+        data = pickle.load(file)
+    return data
+
+def load_camera_landmarks(cam_path, landmarks_path):
+    cam_frames = load_data(cam_path)
+    landmark_frames = load_data(landmarks_path)
+    assert len(cam_frames) == len(landmark_frames)
+    camera_poses = [gtsam.Pose3(frame["Camera"]) for frame in cam_frames]
+    landmark_poses = []
+    for frame in landmark_frames:
+        entry = {}
+        for key in frame:
+            if key != "Camera":
+                P = frame[key]
+                entry[key] = gtsam.Pose3(P)
+        landmark_poses.append(entry)
+    return (camera_poses, landmark_poses)
 def load_poses(path) -> List[gtsam.Pose3]:
     """Creates ground truth poses of the robot."""
     dbfile = open(path, 'rb')
@@ -99,16 +118,16 @@ def Pose3_ISAM2_example():
     plt.ion()
 
     # Declare the 3D translational standard deviations of the prior factor's Gaussian model, in meters.
-    prior_xyz_sigma = 0.00001
+    prior_xyz_sigma = 0.0000001
 
     # Declare the 3D rotational standard deviations of the prior factor's Gaussian model, in degrees.
-    prior_rpy_sigma = 0.00001
+    prior_rpy_sigma = 0.0000001
 
     # Declare the 3D translational standard deviations of the odometry factor's Gaussian model, in meters.
-    odometry_xyz_sigma = 0.00001
+    odometry_xyz_sigma = 0.0000001
 
     # Declare the 3D rotational standard deviations of the odometry factor's Gaussian model, in degrees.
-    odometry_rpy_sigma = 0.00001
+    odometry_rpy_sigma = 0.0000001
 
     # Although this example only uses linear measurements and Gaussian noise models, it is important
     # to note that iSAM2 can be utilized to its full potential during nonlinear optimization. This example
@@ -153,12 +172,14 @@ def Pose3_ISAM2_example():
     isam = gtsam.ISAM2(parameters)
 
     # Create the ground truth poses of the robot trajectory.
-    # true_poses = create_poses()
+    # camera_poses = create_poses()
     dataset_path = Path(__file__).parent.parent / "datasets" / "crackers_new"
-    true_poses = load_poses(dataset_path / "frames_gt.p")
-    true_landmarks = load_static_landmarks(dataset_path / "frames_gt.p")
-    landmark_measurements = load_landmark_measurements(dataset_path / "frames_prediction.p")
-
+    # camera_poses, landmark_poses = load_camera_landmarks(dataset_path/"frames_gt.p", dataset_path/"frames_gt.p")
+    camera_poses, landmark_poses = load_camera_landmarks(dataset_path/"frames_gt.p", dataset_path/"frames_prediction.p")
+    # camera_poses = load_poses(dataset_path / "frames_gt.p")
+    # true_landmarks = load_static_landmarks(dataset_path / "frames_gt.p")
+    # landmark_poses = load_landmark_measurements(dataset_path / "frames_prediction.p")
+    # camera_poses = 1
     # Create the ground truth odometry transformations, xyz translations, and roll-pitch-yaw rotations
     # between each robot pose in the trajectory.
 
@@ -166,10 +187,10 @@ def Pose3_ISAM2_example():
     # iSAM2 incremental optimization.
     gt_dict = {}
 
-    graph.add(gtsam.PriorFactorPose3(X(1), true_poses[0], PRIOR_NOISE))
-    gt_dict[str(Symbol(X(1)).string())] = true_poses[0]
+    graph.add(gtsam.PriorFactorPose3(X(1), camera_poses[0], PRIOR_NOISE))
+    gt_dict[str(Symbol(X(1)).string())] = camera_poses[0]
 
-    initial_estimate.insert(X(1), true_poses[0])
+    initial_estimate.insert(X(1), camera_poses[0])
 
     # Initialize the current estimate which is used during the incremental inference loop.
     current_estimate = initial_estimate
@@ -178,44 +199,44 @@ def Pose3_ISAM2_example():
     landmark_keys_idx = 0
 
     first_entry = {}
-    T_wc = true_poses[0]
-    for key in landmark_measurements[0]:
-        T_co = landmark_measurements[0][key]
+    T_wc = camera_poses[0]
+    for key in landmark_poses[0]:
+        T_co = landmark_poses[0][key]
         first_entry[key] = T_co.matrix()
     estimate_frames = [first_entry]
-    # estimate_frames = [landmark_measurements[0]]
+    # estimate_frames = [# landmark_poses[0]]
 
-    for i in range(1, len(true_poses)):
+    for i in range(1, len(camera_poses)):
 
         # Obtain the noisy translation and rotation that is received by the robot and corrupted by gaussian noise.
-        odometry_tf = true_poses[i - 1].transformPoseTo(true_poses[i])
-        noisy_tf = add_noise_to_measurement(odometry_tf, ODOMETRY_NOISE)
-
+        odometry_tf = camera_poses[i - 1].transformPoseTo(camera_poses[i])
+        # noisy_tf = add_noise_to_measurement(odometry_tf, ODOMETRY_NOISE)
+        noisy_tf = odometry_tf
         previous_key = X(i)
         current_key = X(i + 1)
 
         graph.add(gtsam.BetweenFactorPose3(previous_key, current_key, noisy_tf, ODOMETRY_NOISE))
-        gt_dict[str(Symbol(current_key).string())] = true_poses[i]
+        gt_dict[str(Symbol(current_key).string())] = camera_poses[i]
         noisy_estimate = current_estimate.atPose3(previous_key).compose(noisy_tf)
         initial_estimate.insert(current_key, noisy_estimate)
 
-        for dict_key in landmark_measurements[i - 1]:
+        for dict_key in landmark_poses[i - 1]:
             if dict_key not in landmark_keys:
                 landmark_keys[dict_key] = V(landmark_keys_idx)
                 landmark_keys_idx += 1
             landmark_key = landmark_keys[dict_key]
 
-            landmark_tf = landmark_measurements[i - 1][dict_key]
-            # landmark_tf = true_poses[i - 1].transformPoseTo(true_landmarks[l])
+            landmark_tf = landmark_poses[i - 1][dict_key]
+            # landmark_tf = camera_poses[i - 1].transformPoseTo(true_landmarks[l])
 
             noisy_landmark_tf = landmark_tf
 
             my_cov = np.array([[0.00001, 0, 0, 0, 0, 0],
                                [0, 0.00001, 0, 0, 0, 0],
                                [0, 0, 0.00001, 0, 0, 0],
-                               [0, 0, 0, 0.00005, 0, 0],
-                               [0, 0, 0, 0, 0.00005, 0],
-                               [0, 0, 0, 0, 0, 0.0001]])
+                               [0, 0, 0, 0.005, 0, 0],
+                               [0, 0, 0, 0, 0.005, 0],
+                               [0, 0, 0, 0, 0, 0.01]])
             gRp = landmark_tf.rotation().matrix()
             P = my_cov[3:6, 3:6]
             transformed_cov = gRp.T @ P @ gRp

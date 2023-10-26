@@ -18,7 +18,7 @@ def get_error_vector(Tco_gt, Tco_estimate):
     error_vector[3] = angle
     return error_vector
 
-def plot_error_vectors(error_vectors, axis, title = ""):
+def plot_error_vectors(error_vectors, axis:plt.axis, title = ""):
     axis.set_title(title)
     for i, error_vector in enumerate(error_vectors):
         axis.plot([i], error_vector[0]*1000, 'o', color="red")
@@ -30,19 +30,13 @@ def plot_error_vectors(error_vectors, axis, title = ""):
     axis.set_xlabel("frame")
     axis.set_ylabel("xyz[mm], rot[deg]")
     axis.set_xlim(-1, len(error_vectors))
+    axis.grid()
     # plt.savefig(f'{title}.png')
-def get_Tco_from_frame(frame, obj_name):
-    T_wc = frame["Camera"]
-    T_wo = frame[obj_name]
-    T_cw = np.linalg.inv(T_wc)
-    T_co = T_cw@T_wo
-    return T_co
 
 def get_object_error_vector(frames_gt, frames_prediction, obj_name):
     error_vectors = []
-
     for frame in range(len(frames_gt)):
-        T_co_gt = get_Tco_from_frame(frames_gt[frame], obj_name)
+        T_co_gt = frames_gt[frame][obj_name]
         T_co_estimate = frames_prediction[frame][obj_name]
         error_vectors.append(get_error_vector(T_co_gt, T_co_estimate))
     return error_vectors

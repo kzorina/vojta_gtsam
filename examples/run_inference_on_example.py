@@ -199,6 +199,7 @@ def main():
     set_logging_level("info")
     dataset_name = "crackers_new"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
+
     run_inference(dataset_path, "ycbv")
 
 if __name__ == "__main__":
