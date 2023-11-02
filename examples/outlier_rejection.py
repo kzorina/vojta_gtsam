@@ -81,6 +81,20 @@ def load_landmark_measurements(path) -> List[dict[gtsam.Pose3]]:
         ret.append(entry)
     return ret
 
+def probability_density(x, centre, covariance):
+    assert(x.shape == centre.shape)
+    assert (x.shape[0] == centre.shape[0] == covariance.shape[0])
+    assert (covariance.shape[0] == covariance.shape[1])
+    cov_inv = np.linalg.inv(covariance)
+    cov_det = np.linalg.det(covariance)
+    k = x.shape[0]
+    ret = np.exp(-0.5*(x - centre).T@cov_inv@(x - centre))/np.sqrt(cov_det*(2*np.pi)**k)
+    return ret
+
+def Pose3_to_rot_xyz(pose:gtsam.Pose3):
+    rot = pose.rotation().rpy()
+    return np.array((rot[0], rot[1], rot[2], pose.x(), pose.y(), pose.z()))
+
 def add_noise_to_measurement(measurement, noise):
     odometry_xyz = (measurement.x(), measurement.y(), measurement.z())
     odometry_rpy = measurement.rotation().rpy()
@@ -220,6 +234,7 @@ def Pose3_ISAM2_example():
         noisy_estimate = current_estimate.atPose3(previous_key).compose(noisy_tf)
         initial_estimate.insert(current_key, noisy_estimate)
 
+
         for dict_key in landmark_poses[i - 1]:
             if dict_key not in landmark_keys:
                 landmark_keys[dict_key] = V(landmark_keys_idx)
@@ -229,7 +244,6 @@ def Pose3_ISAM2_example():
             landmark_tf = landmark_poses[i - 1][dict_key]
             # landmark_tf = camera_poses[i - 1].transformPoseTo(true_landmarks[l])
 
-            noisy_landmark_tf = landmark_tf
 
             my_cov = np.array([[0.001, 0, 0, 0, 0, 0],
                                [0, 0.001, 0, 0, 0, 0],
@@ -244,32 +258,28 @@ def Pose3_ISAM2_example():
             noise: gtsam.noiseModel.Gaussian = gtsam.noiseModel.Gaussian.Covariance(my_cov)
             # cov = noise.covariance()
 
-            graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, noisy_landmark_tf, noise))
-            # tf = gtsam.Unit3(np.array((noisy_landmark_tf.x(), noisy_landmark_tf.y(), noisy_landmark_tf.z())))
-            # graph.add(gtsam.BearingRangeFactor3D(previous_key, landmark_key, noisy_landmark_tf, 2, ODOMETRY_NOISE))
-            # gt_dict[str(Symbol(landmark_key).string())] = true_landmarks[l]
-            if landmark_key not in detected_landmarks:
+            if landmark_key in detected_landmarks:
+                known_landmark_pose = current_estimate.atPose3(landmark_key)
+                known_landmark_cov = marginals.marginalCovariance(landmark_key)
+                new_landmark_pose = current_estimate.atPose3(previous_key).compose(landmark_tf)
+                P = probability_density(Pose3_to_rot_xyz(new_landmark_pose), Pose3_to_rot_xyz(known_landmark_pose), known_landmark_cov)
+                print(P)
+                if P > 100:
+                    graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, landmark_tf, noise))
+            else:
+                graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, landmark_tf, noise))
                 detected_landmarks.add(landmark_key)
-                noisy_estimate = current_estimate.atPose3(previous_key).compose(noisy_landmark_tf)
-                initial_estimate.insert(landmark_key, noisy_estimate)
+                estimate = current_estimate.atPose3(previous_key).compose(landmark_tf)
+                initial_estimate.insert(landmark_key, estimate)
 
-        # Compute and insert the initialization estimate for the current pose using a noisy odometry measurement.
-        # Perform incremental update to iSAM2's internal Bayes tree, optimizing only the affected variables.
         isam.update(graph, initial_estimate)
         current_estimate = isam.calculateEstimate()
         estimate_frames.append(estimate_to_dict(graph, current_estimate, landmark_keys, current_key))
-        # Report all current state estimates from the iSAM2 optimization.
-        # print(gt_dict)
+        marginals = gtsam.Marginals(graph, current_estimate)
         draw_3d_estimate(graph, current_estimate, False)
 
         initial_estimate.clear()
 
-    # Print the final covariance matrix for each pose after completing inference.
-    marginals = gtsam.Marginals(graph, current_estimate)
-    i = 1
-    # while current_estimate.exists(i):
-    #     print(f"X{i} covariance:\n{marginals.marginalCovariance(i)}\n")
-    #     i += 1
     save_data(dataset_path/"frames_refined_prediction.p", estimate_frames)
 
     plt.ioff()

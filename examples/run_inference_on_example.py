@@ -183,15 +183,15 @@ def run_inference(dataset_dir: Path, dataset_to_use: str) -> None:
 
     all_predictions = []
     for img_name in img_names:
+        frame_processing_time_start = time.time()
         img_path = dataset_dir / "frames" / img_name
         rgb, depth, camera_data = load_observation(dataset_dir, img_path)
         observation = data_to_observation(rgb, depth, camera_data)
-        inference_time_start = time.time()
         predictions = CosyPose.inference(observation)
-        print(f"inference successfully. {(time.time() - inference_time_start):9.4f}s")
         renderings = rendering(predictions, dataset_dir)
         save_prediction_img(dataset_dir / "output", img_name, rgb, renderings.rgb)
         all_predictions.append(predictions)
+        print(f"inference successfully. {(time.time() - frame_processing_time_start):9.4f}s")
     save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
     print(f"runtime: {time.time() - start_time}s for {len(img_names)} images")
 
