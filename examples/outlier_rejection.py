@@ -91,6 +91,19 @@ def probability_density(x, centre, covariance):
     ret = np.exp(-0.5*(x - centre).T@cov_inv@(x - centre))/np.sqrt(cov_det*(2*np.pi)**k)
     return ret
 
+def bhattacharyya_distance(x, centre, covariance_t, covariance_x):
+    assert(x.shape == centre.shape)
+    assert (x.shape[0] == centre.shape[0] == covariance_t.shape[0] == covariance_x.shape[0])
+    assert (covariance_t.shape[0] == covariance_t.shape[1])
+    assert (covariance_x.shape[0] == covariance_x.shape[1])
+    cov = (covariance_t + covariance_x)/2
+    cov_inv = np.linalg.inv(cov)
+    cov_det = np.linalg.det(cov)
+    cov_t_det = np.linalg.det(covariance_t)
+    cov_x_det = np.linalg.det(covariance_x)
+    v = x - centre
+    return (v@cov_inv@v)/8 + np.log(cov_det/(np.sqrt(cov_x_det*cov_t_det)))/2
+
 def Pose3_to_rot_xyz(pose:gtsam.Pose3):
     rot = pose.rotation().rpy()
     return np.array((rot[0], rot[1], rot[2], pose.x(), pose.y(), pose.z()))
@@ -263,8 +276,12 @@ def Pose3_ISAM2_example():
                 known_landmark_cov = marginals.marginalCovariance(landmark_key)
                 new_landmark_pose = current_estimate.atPose3(previous_key).compose(landmark_tf)
                 P = probability_density(Pose3_to_rot_xyz(new_landmark_pose), Pose3_to_rot_xyz(known_landmark_pose), known_landmark_cov)
-                print(P)
-                if P > 100:
+                D = bhattacharyya_distance(Pose3_to_rot_xyz(new_landmark_pose),
+                                           Pose3_to_rot_xyz(known_landmark_pose),
+                                           known_landmark_cov,
+                                           my_cov)
+                print(D)
+                if D < 1000:
                     graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, landmark_tf, noise))
             else:
                 graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, landmark_tf, noise))
