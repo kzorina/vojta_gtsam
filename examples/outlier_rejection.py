@@ -263,7 +263,7 @@ def Pose3_ISAM2_example():
                                [0, 0, 0.001, 0, 0, 0],
                                [0, 0, 0, 0.005, 0, 0],
                                [0, 0, 0, 0, 0.005, 0],
-                               [0, 0, 0, 0, 0, 0.01]])
+                               [0, 0, 0, 0, 0, 0.005]])
             gRp = landmark_tf.rotation().matrix()
             P = my_cov[3:6, 3:6]
             transformed_cov = gRp.T @ P @ gRp
@@ -275,12 +275,13 @@ def Pose3_ISAM2_example():
                 known_landmark_pose = current_estimate.atPose3(landmark_key)
                 known_landmark_cov = marginals.marginalCovariance(landmark_key)
                 new_landmark_pose = current_estimate.atPose3(previous_key).compose(landmark_tf)
+
                 P = probability_density(Pose3_to_rot_xyz(new_landmark_pose), Pose3_to_rot_xyz(known_landmark_pose), known_landmark_cov)
                 D = bhattacharyya_distance(Pose3_to_rot_xyz(new_landmark_pose),
                                            Pose3_to_rot_xyz(known_landmark_pose),
                                            known_landmark_cov,
                                            my_cov)
-                print(D)
+                # print(D)
                 if D < 1000:
                     graph.add(gtsam.BetweenFactorPose3(previous_key, landmark_key, landmark_tf, noise))
             else:
@@ -293,6 +294,7 @@ def Pose3_ISAM2_example():
         current_estimate = isam.calculateEstimate()
         estimate_frames.append(estimate_to_dict(graph, current_estimate, landmark_keys, current_key))
         marginals = gtsam.Marginals(graph, current_estimate)
+        zzz = marginals.marginalCovariance(V(0))
         draw_3d_estimate(graph, current_estimate, False)
 
         initial_estimate.clear()

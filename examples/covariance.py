@@ -90,6 +90,3 @@ if __name__ == '__main__':
     # ax.set_zlim(-4, 4)
 
     plt.show()
-
-
-[]
