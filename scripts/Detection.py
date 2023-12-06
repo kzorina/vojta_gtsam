@@ -5,7 +5,6 @@ import pinocchio as pin
 import pickle
 from typing import Dict
 import os
-from Vizualize import draw_layer
 from compare_gt_predictions2 import plot_split_results
 
 class Detection():

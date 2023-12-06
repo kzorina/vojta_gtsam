@@ -9,6 +9,8 @@ class SAM_noise():
     @staticmethod
     def transform_cov(T_ba:np.ndarray, C_ac:np.ndarray):
         assert C_ac.shape == (6, 6)
+        if isinstance(T_ba, gtsam.Pose3):
+            T_ba = T_ba.matrix()
         assert T_ba.shape == (4, 4) or T_ba.shape == (3, 3)
         C_bc = C_ac
         C_bc[:3, :3] = T_ba[:3, :3] @ C_bc[:3, :3] @ T_ba[:3, :3].T
