@@ -26,18 +26,28 @@ def sample_se3_gtsam(T: gtsam.Pose3, Q: np.ndarray):
     return T.transformPoseFrom(gtsam.Pose3.Expmap(np.roll(eta, 3)))
 
 # Create random values for all transforms:
-T_wc_pin = pin.SE3.Random()    # estimated camera pose in world frame
-T_wb_pin = pin.SE3.Random()    # estimated body pose in world frame
-Q_wc = random_cov()
-Q_wb = random_cov()
+T_wc_pin:pin.SE3 = pin.SE3.Random()    # estimated camera pose in world frame
+T_wb_pin:pin.SE3 = pin.SE3.Random()    # estimated body pose in world frame
+Q_wc_pin:np.ndarray = random_cov()
+Q_wb_pin:np.ndarray = random_cov()
 
-u, s, vh = np.linalg.svd(Q_wb)
+T_wc_gtsam:gtsam.Pose3 = gtsam.Pose3(T_wc_pin.homogeneous)
+T_wb_gtsam:gtsam.Pose3 = gtsam.Pose3(T_wb_pin.homogeneous)
+Q_wc_gtsam:np.ndarray = np.roll(Q_wc_pin, shift=(3, 3), axis=(0, 1))
+Q_wb_gtsam:np.ndarray = np.roll(Q_wb_pin, shift=(3, 3), axis=(0, 1))
 
-def f(T_wc, T_wb):
+# u, s, vh = np.linalg.svd(Q_wb)
+
+def f_pin(T_wc:pin.SE3, T_wb:pin.SE3):
     return T_wc.inverse() * T_wb
 
+def f_gtsam(T_wc:gtsam.Pose3, T_wb:gtsam.Pose3):
+    return T_wc.inverse().transformPoseFrom(T_wb)
+    # return T_wc.inverse() * T_wb
+
 # Compute estimated body pose in camera frame
-T_cb = f(T_wc, T_wb)
+T_cb_pin = f_pin(T_wc_pin, T_wb_pin)
+T_cb_gtsam = f_gtsam(T_wc_gtsam, T_wb_gtsam)
 # Question: what's Q_cb, the covariance of T_cb?
 
 # Jacobians of T_cb with respect to T_wc and T_wb
@@ -46,24 +56,29 @@ T_cb = f(T_wc, T_wb)
 # - inverse jacobian: (62) in general and (176) for SE(3)
 # - composition jacobian (63,64) in general and (177,178) for SE(3)
 # - In pinocchio, the Adjoint matrix (Ad) is called the "action"
-J_cb_wc = T_wb.inverse().action @ (-T_wc.action)  # (63) and (62)
-J_cb_wb = np.eye(6)  # (64)
+J_cb_wc_pin = T_wb_pin.inverse().action @ (-T_wc_pin.action)  # (63) and (62)
+J_cb_wb_pin = np.eye(6)  # (64)
+
+# J_cb_wc_gtsam = T_wb_gtsam.inverse().action @ (-T_wc_gtsam.action)  # (63) and (62)
+J_cb_wc_gtsam = T_wb_gtsam.inverse().AdjointMap() @ (-T_wc_gtsam.AdjointMap())
+J_cb_wb_gtsam = np.eye(6)  # (64)
 
 # Chain rule
-Q_cb = J_cb_wc @ Q_wc @ J_cb_wc.T + J_cb_wb @ Q_wb @ J_cb_wb.T
+Q_cb_pin = J_cb_wc_pin @ Q_wc_pin  @ J_cb_wc_pin.T + J_cb_wb_pin  @ Q_wb_pin  @ J_cb_wb_pin.T
+Q_cb_gtsam = J_cb_wc_gtsam @ Q_wc_gtsam  @ J_cb_wc_gtsam.T + J_cb_wb_gtsam  @ Q_wb_gtsam  @ J_cb_wb_gtsam.T
 
 
 # Verify numerically (Monte-Carlo)
-N_samples = int(1e5)  # no difference above
+N_samples = int(1e4)  # no difference above
 nu_cb_arr = np.zeros((N_samples,6))
 print(f'Monte Carlo Sampling N_samples={N_samples}')
 for i in range(N_samples):
     if i % 1e4 == 0:
         print(f'{100*(i/N_samples)} %')
-    T_wc_n = sample_se3(T_wc, Q_wc)
-    T_wb_n = sample_se3(T_wb, Q_wb)
-    T_cb_n = f(T_wc_n, T_wb_n)
-    nu_cb = pin.log6(T_cb_n.inverse() * T_cb)  # OK
+    T_wc_n = sample_se3(T_wc_pin, Q_wc_pin)
+    T_wb_n = sample_se3(T_wb_pin, Q_wb_pin)
+    T_cb_n = f_pin(T_wc_n, T_wb_n)
+    nu_cb = pin.log6(T_cb_n.inverse() * T_cb_pin)  # OK
     # nu_cb = pin.log6(T_cb.inverse() * T_cb_n)  # OK
     # nu_cb = pin.log6(T_cb_n * T_cb.inverse())  # WRONG
     # nu_cb = pin.log6(T_cb * T_cb_n.inverse())  # WRONG
@@ -80,9 +95,9 @@ def frobenius_norm(Q1, Q2):
 print('Q_cb_num')
 print(Q_cb_num)
 print('Q_cb')
-print(Q_cb)
+print(Q_cb_pin)
 print('Q_cb_num - Q_cb')
-print(Q_cb_num - Q_cb)
-print(frobenius_norm(Q_cb_num, Q_wb))
-print(frobenius_norm(Q_cb_num, Q_wc))
-print(frobenius_norm(Q_cb_num, Q_cb))
+print(Q_cb_num - Q_cb_pin)
+print(frobenius_norm(Q_cb_num, Q_wb_pin))
+print(frobenius_norm(Q_cb_num, Q_wc_pin))
+print(frobenius_norm(Q_cb_num, Q_cb_pin))

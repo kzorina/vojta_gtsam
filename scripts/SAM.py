@@ -41,21 +41,23 @@ class SAM():
         self.update_estimate()
 
     def is_outlier(self, T_cn, noise:gtsam.noiseModel.Gaussian, key):
-        T_cn: gtsam.Pose3 = gtsam.Pose3(T_cn)  # new estimate to camera transformation
+        T_cn: gtsam.Pose3 = gtsam.Pose3(T_cn)  # new_estimate to camera transformation
         T_bc: gtsam.Pose3 = self.current_estimate.atPose3(self.camera_key)  # old estimate to camera transformation
         T_bo: gtsam.Pose3 = self.current_estimate.atPose3(key)  # old estimate to camera transformation
-        C_oo: np.ndarray = self.marginals.marginalCovariance(key)  # covariance matrix of old estimate expressed in the old estimate reference frame
-        C_nn: np.ndarray = noise.covariance()
-        C_cc: np.ndarray = self.marginals.marginalCovariance(self.camera_key)
+        Q_oo: np.ndarray = self.marginals.marginalCovariance(key)  # covariance matrix of old estimate expressed in the old estimate reference frame
+        Q_nn: np.ndarray = noise.covariance()  # new estimate covariance in the new estimate frame
+        Q_cc: np.ndarray = self.marginals.marginalCovariance(self.camera_key)  #  camera covariance in the camera frame
         # noise_o: gtsam.noiseModel.Gaussian = gtsam.noiseModel.Gaussian.Covariance(cov_o)
-        T_nc = T_cn.inverse()
-        T_on: gtsam.Pose3 = T_bo.inverse().compose(T_bc).compose(T_cn)
-        C_nn = SAM_noise.transform_cov(T_nc, C_cc) + C_nn
-        C_on = SAM_noise.transform_cov(T_on, C_nn)
+        J_cb_wc_gtsam = T_wb_gtsam.inverse().AdjointMap() @ (-T_wc_gtsam.AdjointMap())
+        J_cb_wb_gtsam = np.eye(6)
+        # T_nc = T_cn.inverse()
+        # T_on: gtsam.Pose3 = T_bo.inverse().compose(T_bc).compose(T_cn)
+        # Q_nn = SAM_noise.transform_cov(T_nc, Q_cc) + Q_nn
+        # Q_on = SAM_noise.transform_cov(T_on, Q_nn)
         # source: https://stats.stackexchange.com/questions/494430/covariance-of-sum-of-multivariate-normals#:~:text=If%20you%20add%20two%20multivariate,of%20the%20two%20covariance%20matrices.&text=Note%20that%20your%20v%E2%8B%85b%20is%20a%20multivariate%20normal%20distribution.
         # C_bn = C_bn +
-        mahal_d = mahalanobis_distance(gtsam.gtsam.Pose3.Logmap(T_on), C_oo, None)
-        bhatt_d = bhattacharyya_distance(gtsam.gtsam.Pose3.Logmap(T_on), C_oo, C_on)
+        mahal_d = mahalanobis_distance(gtsam.gtsam.Pose3.Logmap(T_on), Q_oo, None)
+        bhatt_d = bhattacharyya_distance(gtsam.gtsam.Pose3.Logmap(T_on), Q_oo, Q_on)
         if bhatt_d > 10:
             return True
         # R =
