@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def mahalanobis_distance(x, covariance, covariance_x):
+def mahalanobis_distance(x, covariance):
     assert (x.shape[0] == covariance.shape[0])
     assert (covariance.shape[0] == covariance.shape[1])
     cov_inv = np.linalg.inv(covariance)

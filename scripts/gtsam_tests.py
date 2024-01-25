@@ -38,6 +38,11 @@ def test_composition():
     T_gtsam_wb:gtsam.Pose3 = T_gtsam_wa.transformPoseFrom(T_gtsam_ab)
     test_T(T_np_wb, T_pin_wb, T_gtsam_wb)
 
+    T_np_ab2:np.ndarray = np.linalg.inv(T_np_wa) @ T_np_wb
+    T_pin_ab2:pin.SE3 = (T_pin_wa.inverse() * T_pin_wb)
+    T_gtsam_ab2:gtsam.Pose3 = T_gtsam_wa.transformPoseTo(T_gtsam_wb)
+    test_T(T_np_ab2, T_pin_ab2, T_gtsam_ab2)
+
 def random_cov(dim=6):
     A = np.random.rand(dim, dim)
     sig = 0.1  # meters and radians
@@ -68,7 +73,7 @@ def test_rolled_covariance():
     pass
 
 def main():
-    test_flipped_covariance()
+    test_rolled_covariance()
     test_composition()
     test_exp6()
 

@@ -71,6 +71,7 @@ def plot_results(object_names, frames_gt, frames_prediction, frames_refined_pred
     plt.show()
 def main():
     dataset_name = "crackers_new"
+    # dataset_name = "crackers_duplicates"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
     frames_gt = load_data(dataset_path/"frames_gt.p")
     # frames_prediction = load_data(dataset_path/"frames_prediction.p")

@@ -163,11 +163,13 @@ def save_preditions_data(output_path, all_predictions):
     frames = []
     for predictions in all_predictions:
         entry = {}
-        poses_tensor:torch.Tensor= predictions.tensors["poses"]
+        poses_tensor:torch.Tensor = predictions.tensors["poses"]
         for idx, label in enumerate(predictions.infos["label"]):
             pose = poses_tensor[idx].numpy()
             obj_name = YCBV_OBJECT_NAMES[label.split("-")[1]]
-            entry[obj_name] = pose
+            if obj_name not in entry:
+                entry[obj_name] = []
+            entry[obj_name].append(pose)
         frames.append(entry)
     with open(output_path, 'ab') as file:
         pickle.dump(frames, file)
@@ -193,11 +195,12 @@ def run_inference(dataset_dir: Path, dataset_to_use: str) -> None:
         all_predictions.append(predictions)
         print(f"inference successfully. {(time.time() - frame_processing_time_start):9.4f}s")
     save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
-    print(f"runtime: {time.time() - start_time}s for {len(img_names)} images")
+    print(f"runtime: {(time.time() - start_time):.2f}s for {len(img_names)} images")
 
 def main():
     set_logging_level("info")
-    dataset_name = "crackers_new"
+    # dataset_name = "crackers_new"
+    dataset_name = "crackers_duplicates"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
 
     run_inference(dataset_path, "ycbv")

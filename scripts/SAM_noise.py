@@ -19,8 +19,8 @@ class SAM_noise():
 
     @staticmethod
     def get_panda_eef_noise() -> gtsam.noiseModel:
-        exp_sigma = 0.0001  # norm in radians
-        xyz_sigma = 0.0001  # in meters
+        exp_sigma = 0.0000001  # norm in radians
+        xyz_sigma = 0.0000001  # in meters
         # exp, x, y, z
         C_cc = np.diag([exp_sigma,
                                exp_sigma,
@@ -36,16 +36,16 @@ class SAM_noise():
         """
         :param f: camera focal length in meters
         """
-        exp_sigma = 0.01  # norm in radians
-        xyz_sigma = 0.000005  # in meters
+        exp_sigma = 0.002  # norm in radians
+        xyz_sigma = 0.00001  # in meters
         z = T_co[2, 3]  # distance from camera
-        a = 0.05  # object size estimate, meters
+        a = 0.010  # object size estimate, meters
         C_co = np.diag([exp_sigma,
                                exp_sigma,
                                exp_sigma,
                                (xyz_sigma * z)/f,
                                (xyz_sigma * z)/f,
-                               (xyz_sigma * z**2)/(a*f*f)])
+                               (xyz_sigma * 0.05 * z**2)/(a*f*f)])
         T_oc = np.linalg.inv(T_co)
         C_oo = SAM_noise.transform_cov(T_oc, C_co)
         # cov[3:6, 3:6] = T_bc[:3, :3] @ cov[3:6, 3:6] @ T_bc[:3, :3].T  # transform covariance matrix from camera frame to object frame

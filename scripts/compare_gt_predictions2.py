@@ -60,7 +60,7 @@ def plot_error_vectors_rot(error_vectors, axis:plt.axis, title = ""):
         axis.plot(np.arange(0, error_vector.shape[0]), error_vector * 180 / np.pi, 'r-o', color=colors[i])
     axis.legend(["rot"])
     axis.set_xlabel("frame")
-    axis.set_ylabel("error angle[mm]")
+    axis.set_ylabel("error angle[deg]")
     axis.set_xlim(-1, len(error_vectors[0]))
     axis.grid()
 
