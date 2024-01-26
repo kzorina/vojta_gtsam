@@ -36,7 +36,7 @@ def example_with_vizualization():
 def example_on_frames_prediction():
     base_path = Path(__file__).parent.parent / "datasets"
     # dataset_path = base_path / "crackers_new"
-    dataset_path = base_path / "crackers_duplicates"
+    dataset_path = base_path / "static1"
     sam = SAM()
     frames_gt = load_data(dataset_path / "frames_gt.p")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
@@ -51,15 +51,16 @@ def example_on_frames_prediction():
         sam.update_estimate()
         estimate_progress.append(sam.export_current_state())
         sam.draw_3d_estimate()
-        # poses = sam.get_all_T_co()  # TODO: make compatible with duplicates
-        # refined.append(poses)  # TODO: make compatible with duplicates
+        poses = sam.get_all_T_co()
+        refined.append(poses)
     # objects_to_plot = ["2", "5", "7", "4", "3"]
-    if os.path.exists(dataset_path / 'estimate_progress.p'):
-        os.remove(dataset_path / 'estimate_progress.p')
-    with open(dataset_path / 'estimate_progress.p', 'ab') as file:
+    with open(dataset_path / 'estimate_progress.p', 'wb') as file:
         pickle.dump(estimate_progress, file)
-    objects_to_plot = ["02_cracker_box", "03_sugar_box", "07_pudding_box", "12_bleach_cleanser"]
-    # plot_split_results(objects_to_plot, frames_gt, [refined])  # TODO: make compatible with duplicates
+    with open(dataset_path / 'frames_refined_prediction.p', 'wb') as file:
+        pickle.dump(refined, file)
+    objects_to_plot = ["02_cracker_box", "02_cracker_box", "02_cracker_box"]#, "03_sugar_box", "07_pudding_box", "12_bleach_cleanser"]
+
+    # plot_split_results(objects_to_plot, frames_gt, [refined])
 
 if __name__ == "__main__":
     # bare_minimum_example()

@@ -200,7 +200,7 @@ def run_inference(dataset_dir: Path, dataset_to_use: str) -> None:
 def main():
     set_logging_level("info")
     # dataset_name = "crackers_new"
-    dataset_name = "crackers_duplicates"
+    dataset_name = "static1"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
 
     run_inference(dataset_path, "ycbv")

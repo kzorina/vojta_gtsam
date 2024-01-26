@@ -118,17 +118,18 @@ class SAM():
         assignment = [-1 for i in range(D.shape[1])]  # new_detection_idx: [old_detection_idx, ..., ...],
         # TODO: rewrite with linear programming
         # d_size = max(D.shape[0], D.shape[1])
-        if D.shape[0] > D.shape[1]:
-            padded_D = np.full((D.shape[0], D.shape[0]), np.inf)
-        else:
-            padded_D = np.zeros((D.shape[1], D.shape[1]))
+        padded_D = np.zeros_like(D)
+        # if D.shape[0] > D.shape[1]:
+        #     padded_D = np.full((D.shape[0], D.shape[0]), np.inf)
+        # else:
+        #     padded_D = np.zeros((D.shape[1], D.shape[1]))
         padded_D[:D.shape[0], :D.shape[1]] = D
         for i in range(D.shape[1]):
-            argmin = np.argmin(padded_D[i,:])
-            minimum = padded_D[i,:][argmin]
+            argmin = np.argmin(padded_D[:, i])
+            minimum = padded_D[:, i][argmin]
             if minimum < 100:
-                assignment[argmin] = i
-            padded_D[:, argmin] = np.full((padded_D.shape[0]), np.inf)
+                assignment[i] = argmin
+            padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
 
 
@@ -189,11 +190,12 @@ class SAM():
 
     def get_all_T_co(self):  # TODO: make compatible with duplicates
         ret = {}
-        for idx in self.detected_landmarks:
-            key = self.detected_landmarks[idx]
-            T_bo: gtsam.Pose3 = self.current_estimate.atPose3(key)
-            T_bc: gtsam.Pose3 = self.current_estimate.atPose3(self.camera_key)
-            ret[idx] = (T_bc.inverse().compose(T_bo)).matrix()
+        for object_name in self.detected_landmarks:
+            ret[object_name] = []
+            for symbol in self.detected_landmarks[object_name]:
+                T_bo: gtsam.Pose3 = self.current_estimate.atPose3(symbol)
+                T_bc: gtsam.Pose3 = self.current_estimate.atPose3(self.camera_key)
+                ret[object_name].append((T_bc.inverse().compose(T_bo)).matrix())
         return ret
 
     def export_current_state(self):

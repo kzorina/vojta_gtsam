@@ -41,6 +41,7 @@ def test_composition():
     T_np_ab2:np.ndarray = np.linalg.inv(T_np_wa) @ T_np_wb
     T_pin_ab2:pin.SE3 = (T_pin_wa.inverse() * T_pin_wb)
     T_gtsam_ab2:gtsam.Pose3 = T_gtsam_wa.transformPoseTo(T_gtsam_wb)
+    T_gtsam2_ab2:gtsam.Pose3 = T_gtsam_wa.inverse().compose(T_gtsam_wb)
     test_T(T_np_ab2, T_pin_ab2, T_gtsam_ab2)
 
 def random_cov(dim=6):
