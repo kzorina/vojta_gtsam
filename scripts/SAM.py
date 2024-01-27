@@ -31,6 +31,10 @@ class SAM():
         self.current_frame = 0
         self.camera_key = None
 
+        self.K = np.array([[615.15, 0, 324.58],
+                           [0, 615.25, 237.82],
+                           [0, 0, 1]])
+
     def insert_T_bc_detection(self, T_bc: np.ndarray):
         """
         inserts camera pose estimate
@@ -127,7 +131,7 @@ class SAM():
         for i in range(D.shape[1]):
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
-            if minimum < 100:
+            if minimum < 1000:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
@@ -145,14 +149,11 @@ class SAM():
         isert one or more insances of the same object type. Determines the best assignment to previous detections.
         :param T_cos: [T_co, T_co, T_co...] unordered list of objects of the same type
         """
-        # symbol = self.get_landmark_symbol(object_name)
-        # pose = gtsam.Pose3(T_co)
-        # T_bc = self.current_estimate.atPose3(self.camera_key).matrix()
-        # noise = SAM_noise.get_object_in_camera_noise(T_co, T_bc, f=0.03455)
         T_bc = self.current_estimate.atPose3(self.camera_key)
         noises = []
         for j in range(len(T_cn_s)):
             noises.append(SAM_noise.get_object_in_camera_noise(T_cn_s[j], T_bc.matrix(), f=0.03455))
+            # noises.append(SAM_noise.get_object_in_camera_noise_old(T_cn_s[j], T_bc.matrix(), f=0.03455))
         if object_name not in self.detected_landmarks:  # no previous instance of this object.
             self.detected_landmarks[object_name] = []
             for j in range(len(T_cn_s)):
@@ -231,7 +232,7 @@ class SAM():
             name = str(Symbol(i).string())
             cov = marginals.marginalCovariance(i)
             gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
-            gtsam_plot.plot_covariance_ellipse_3d(axes, current_pose.translation(), cov[:3, :3], alpha=0.3, cmap='cool')
+            # gtsam_plot.plot_covariance_ellipse_3d(axes, current_pose.translation(), cov[:3, :3], alpha=0.3, cmap='cool')
             axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
 
         ranges = (-0.8, 0.8)
@@ -244,7 +245,7 @@ class SAM():
             while keyboardClick != True:
                 keyboardClick = plt.waitforbuttonpress()
         else:
-            plt.pause(0.05)
+            plt.pause(0.6)
 
 def main():
     pass
