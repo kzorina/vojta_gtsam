@@ -81,7 +81,8 @@ class SAM():
     #         symbol = L(len(self.detected_landmarks) + 1)
     #         return symbol
     def get_new_symbol(self):
-        symbol = L(self.landmark_count + 1)
+        max_idx = 10**11
+        symbol = L((((self.landmark_count + 1) % max_idx) * max_idx))
         return symbol
 
     # def insert_T_co_detection(self, T_co: np.ndarray, object_name: str):
@@ -113,9 +114,10 @@ class SAM():
         for i in range(len(T_bo_s)):
             for j in range(len(T_cn_s)):
                 #  T_on = np.linalg.inv(T_bo_s[i]) @ T_bc @ T_cn_s[j]
-                Q_cn = noises[j]
+                Q_nn = noises[j]
                 T_on = T_bo_s[i].transformPoseTo(T_bc.transformPoseFrom(gtsam.Pose3(T_cn_s[j])))
-                D[i, j] = mahalanobis_distance(gtsam.gtsam.Pose3.Logmap(T_on), Q_oo[i])
+                # D[i, j] = mahalanobis_distance(gtsam.gtsam.Pose3.Logmap(T_on), Q_oo[i])
+                D[i, j] = mahalanobis_distance(gtsam.gtsam.Pose3.Logmap(T_on.inverse()), Q_nn.covariance())
         return D
 
     def determine_assignment(self, D):
@@ -172,8 +174,15 @@ class SAM():
                     symbol = self.get_new_symbol()
                     self.add_new_landmark(symbol, pose, noise, object_name)
                 else:
+                    self.detected_landmarks[object_name][i] += 1
                     symbol = self.detected_landmarks[object_name][i]
                     self.graph.add(gtsam.BetweenFactorPose3(self.camera_key, symbol, pose, noise))
+                    estimate = self.current_estimate.atPose3(self.camera_key).compose(pose)
+                    self.initial_estimate.insert(symbol, estimate)
+                    odometry = gtsam.Pose3(np.eye(4))
+                    time_elapsed = 0.000000000001
+                    odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6)*time_elapsed)
+                    self.graph.add(gtsam.BetweenFactorPose3(symbol - 1, symbol, odometry, odometry_noise))
 
     def update_estimate(self):  # call after each change of camera pose
         self.isam.update(self.graph, self.initial_estimate)
@@ -245,7 +254,43 @@ class SAM():
             while keyboardClick != True:
                 keyboardClick = plt.waitforbuttonpress()
         else:
-            plt.pause(0.6)
+            plt.pause(0.1)
+        return fig
+    def draw_3d_estimate_mm(self):
+        """Display the current estimate of a factor graph"""
+        global count
+        # Compute the marginals for all states in the graph.
+        marginals = gtsam.Marginals(self.graph, self.current_estimate)
+        # Plot the newly updated iSAM2 inference.
+        fig = plt.figure(0)
+        if not fig.axes:
+            axes = fig.add_subplot(projection='3d')
+        else:
+            axes = fig.axes[0]
+        plt.cla()
+        for object_name in self.detected_landmarks:
+            for idx, i in enumerate(self.detected_landmarks[object_name]):
+                current_pose = self.current_estimate.atPose3(i)
+                name = f'{object_name[:2]}_{idx}'
+                cov = marginals.marginalCovariance(i)
+                gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
+                axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
+        for i in self.graph.keyVector():
+            current_pose = self.current_estimate.atPose3(i)
+            name = str(Symbol(i).string())
+            if name[0] == "x":
+                cov = marginals.marginalCovariance(i)
+                gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
+                # gtsam_plot.plot_covariance_ellipse_3d(axes, current_pose.translation(), cov[:3, :3], alpha=0.3, cmap='cool')
+                axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
+
+        ranges = (-0.8, 0.8)
+        axes.set_xlim3d(ranges[0], ranges[1])
+        axes.set_ylim3d(ranges[0], ranges[1])
+        axes.set_zlim3d(ranges[0], ranges[1])
+        fig.show()
+        plt.pause(0.1)
+        return fig
 
 def main():
     pass

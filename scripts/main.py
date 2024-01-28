@@ -37,6 +37,7 @@ def example_on_frames_prediction():
     base_path = Path(__file__).parent.parent / "datasets"
     # dataset_path = base_path / "crackers_new"
     dataset_path = base_path / "static1"
+    # dataset_path = base_path / "dynamic1"
     sam = SAM()
     frames_gt = load_data(dataset_path / "frames_gt.p")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
@@ -49,13 +50,13 @@ def example_on_frames_prediction():
         for key in frames_prediction[i]:
             sam.insert_T_co_detections(frames_prediction[i][key], key)
         sam.update_estimate()
-        estimate_progress.append(sam.export_current_state())
-        sam.draw_3d_estimate()
+        # estimate_progress.append(sam.export_current_state())
+        fig = sam.draw_3d_estimate_mm()
+        # fig.savefig(dataset_path/"gtsam_viz"/f'{i:04}.png')
         poses = sam.get_all_T_co()
         refined.append(poses)
-    # objects_to_plot = ["2", "5", "7", "4", "3"]
-    with open(dataset_path / 'estimate_progress.p', 'wb') as file:
-        pickle.dump(estimate_progress, file)
+    # with open(dataset_path / 'estimate_progress.p', 'wb') as file:
+    #     pickle.dump(estimate_progress, file)
     with open(dataset_path / 'frames_refined_prediction.p', 'wb') as file:
         pickle.dump(refined, file)
     objects_to_plot = ["02_cracker_box", "02_cracker_box", "02_cracker_box"]#, "03_sugar_box", "07_pudding_box", "12_bleach_cleanser"]

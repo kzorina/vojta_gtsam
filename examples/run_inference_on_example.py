@@ -171,7 +171,7 @@ def save_preditions_data(output_path, all_predictions):
                 entry[obj_name] = []
             entry[obj_name].append(pose)
         frames.append(entry)
-    with open(output_path, 'ab') as file:
+    with open(output_path, 'wb') as file:
         pickle.dump(frames, file)
     print(f"data saved to {output_path}")
     return frames
@@ -201,6 +201,7 @@ def main():
     set_logging_level("info")
     # dataset_name = "crackers_new"
     dataset_name = "static1"
+    # dataset_name = "dynamic1"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
 
     run_inference(dataset_path, "ycbv")

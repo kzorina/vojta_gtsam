@@ -93,7 +93,7 @@ def skew_sym(v):
 def test_covariance_composition():
     mean = np.array((0, 0, 0, 0, 0, 0))
     fig = plt.figure(0)
-    axes = fig.add_subplot(projection='3d')
+    # axes = fig.add_subplot(projection='3d')
 
     T_ab = np.array(((1, 0, 0, 0),
                      (0, 1, 0, 0),
@@ -133,11 +133,11 @@ def test_covariance_composition():
         cov_2 = np.cov(samples_C.T)
         # np.linalg.eig((cov_2 - cov_old)[3:5, 3:5])
         # np.linalg.eig(rot_cov)
-        innit_axes(axes)
-        # draw_cov(axes, mean[3:6], cov_1[3:6, 3:6])
-        draw_frame(axes, np.eye(4))
-        plot_wait(plt)
-        axes.clear()
+        # innit_axes(axes)
+        # # draw_cov(axes, mean[3:6], cov_1[3:6, 3:6])
+        # draw_frame(axes, np.eye(4))
+        # plot_wait(plt)
+        # axes.clear()
         # pass
         assert compare_matrices(cov_A+cov_B, np.cov(samples_C.T)) < 2
 
