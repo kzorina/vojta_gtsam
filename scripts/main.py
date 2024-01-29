@@ -36,7 +36,7 @@ def example_with_vizualization():
 def example_on_frames_prediction():
     base_path = Path(__file__).parent.parent / "datasets"
     # dataset_path = base_path / "crackers_new"
-    dataset_path = base_path / "static1"
+    dataset_path = base_path / "test1"
     # dataset_path = base_path / "dynamic1"
     sam = SAM()
     frames_gt = load_data(dataset_path / "frames_gt.p")

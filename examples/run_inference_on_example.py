@@ -83,7 +83,10 @@ logger = get_logger(__name__)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def load_observation(dataset_dir: Path, img_path) -> Tuple[np.ndarray, Union[None, np.ndarray], CameraData]:
-    camera_data = CameraData.from_json((dataset_dir / "camera_data.json").read_text())
+    if os.path.exists(dataset_dir / "camera_data.json"):
+        camera_data = CameraData.from_json((dataset_dir / "camera_data.json").read_text())
+    else:
+        camera_data = CameraData.from_json((dataset_dir.parent / "camera_data.json").read_text())
     rgb = np.array(Image.open(img_path), dtype=np.uint8)
     assert rgb.shape[:2] == camera_data.resolution
     depth = None
@@ -98,7 +101,10 @@ def data_to_observation(rgb, depth, camera_data) -> ObservationTensor:
 def make_object_dataset(example_dir: Path) -> RigidObjectDataset:
     rigid_objects = []
     mesh_units = "mm"
-    object_dirs = (example_dir / "meshes").iterdir()
+    if os.path.exists(example_dir / "meshes"):
+        object_dirs = (example_dir / "meshes").iterdir()
+    else:
+        object_dirs = (example_dir.parent / "meshes").iterdir()
     for object_dir in object_dirs:
         label = object_dir.name
         mesh_path = None
@@ -119,7 +125,10 @@ def rendering(predictions, dataset_dir):
     labels = predictions.infos["label"]
     idxs = predictions.infos["coarse_instance_idx"]
     # rendering
-    camera_data = CameraData.from_json((dataset_dir / "camera_data.json").read_text())
+    if os.path.exists(dataset_dir / "camera_data.json"):
+        camera_data = CameraData.from_json((dataset_dir / "camera_data.json").read_text())
+    else:
+        camera_data = CameraData.from_json((dataset_dir.parent / "camera_data.json").read_text())
     object_labels = [object_dataset.list_objects[i].label for i in range(len(object_dataset.list_objects))]
     camera_data.TWC = Transform(np.eye(4))
     renderer = Panda3dSceneRenderer(object_dataset)
@@ -200,7 +209,7 @@ def run_inference(dataset_dir: Path, dataset_to_use: str) -> None:
 def main():
     set_logging_level("info")
     # dataset_name = "crackers_new"
-    dataset_name = "static1"
+    dataset_name = "test1"
     # dataset_name = "dynamic1"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
 

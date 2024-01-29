@@ -28,14 +28,14 @@ def sample_se3(T: pin.SE3, Q: np.ndarray):
 T_wa_pin:pin.SE3 = pin.SE3.Identity()    # estimated camera pose in world frame
 T_ba_pin:pin.SE3 = pin.SE3.Random()   # estimated body pose in world frame
 T_ba_pin.translation = np.array([0, 0, 0])
-T_ba_pin = pin.SE3(np.array(((1, 0, 0, 0),
-                             (0, 1, 0, 0),
-                             (0, 0, 1, 0),
-                            (0, 0, 0, 1))))
+# T_ba_pin = pin.SE3(np.array(((1, 0, 0, 0),
+#                              (0, 1, 0, 0),
+#                              (0, 0, 1, 0),
+#                             (0, 0, 0, 1))))
 # T_wo_pin:pin.SE3 = pin.SE3.Random()   # estimated body pose in world frame
 
 # Q_aa_pin:np.ndarray = random_cov()
-Q_aa_pin:np.ndarray = np.diag(np.random.rand(6))
+Q_aa_pin:np.ndarray = np.diag(np.array([1, 1, 1, 0.1, 0.1, 0.1]))
 
 def f_pin(T_wa:pin.SE3, T_aa:pin.SE3):
     return T_wa * T_aa
