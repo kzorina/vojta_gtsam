@@ -114,6 +114,9 @@ def calculate_D(gt_T_co_s, est_T_co_s):
 def determine_assignment(frames_gt, frames_prediction, object_name):
     assignment = []
     for frame in range(len(frames_gt)):
+        if object_name not in frames_prediction[frame]:
+            assignment.append(None)
+            continue
         num_of_objects = min(len(frames_gt[frame][object_name]), len(frames_prediction[frame][object_name]))
         D = calculate_D(frames_gt[frame][object_name], frames_prediction[frame][object_name][:num_of_objects])
         entry = []
@@ -159,14 +162,16 @@ def plot_split_results(object_names: Dict, frames_gt, frames_prediction):
     plt.show()
 
 def main():
+    dataset_name = "static_medium"
     dataset_name = "static1"
     # dataset_name = "dynamic1"
     # dataset_name = "crackers_duplicates"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
     frames_gt = load_data(dataset_path/"frames_gt.p")
-    # frames_prediction = load_data(dataset_path/"frames_prediction.p")
+    # frames_prediction = load_data(dataset_path/"frames_prediction1.p")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
     frames_refined_prediction = load_data(dataset_path / "frames_refined_prediction.p")
+    # objects_to_plot = {"02_cracker_box":1, "11_pitcher_base":1, "15_power_drill":1, "17_scissors":1}
     objects_to_plot = {"01_master_chef_can":1, "03_sugar_box":1, "05_mustard_bottle":1, "12_bleach_cleanser":1}
     # objects_to_plot = {"02_cracker_box":1}
     # objects_to_plot = {"02_cracker_box":3}

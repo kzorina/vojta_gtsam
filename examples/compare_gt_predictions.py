@@ -56,7 +56,7 @@ def main():
     dataset_name = "crackers_new"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
     frames_gt = load_data(dataset_path/"frames_gt.p")
-    # frames_prediction = load_data(dataset_path/"frames_prediction.p")
+    # frames_prediction = load_data(dataset_path/"frames_prediction1.p")
     frames_prediction = load_data(dataset_path / "frames_refined_prediction.p")
 
     figure, axis = plt.subplots(4)

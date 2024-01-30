@@ -74,8 +74,8 @@ def main():
     # dataset_name = "crackers_duplicates"
     dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
     frames_gt = load_data(dataset_path/"frames_gt.p")
-    # frames_prediction = load_data(dataset_path/"frames_prediction.p")
-    frames_prediction = load_data(dataset_path / "frames_prediction.p")
+    # frames_prediction = load_data(dataset_path/"frames_prediction1.p")
+    frames_prediction = load_data(dataset_path / "frames_prediction1.p")
     frames_refined_prediction = load_data(dataset_path / "frames_refined_prediction.p")
     objects_to_plot = ["02_cracker_box", "03_sugar_box", "07_pudding_box", "12_bleach_cleanser"]
     plot_results(objects_to_plot, frames_gt, frames_prediction, frames_refined_prediction)

@@ -76,7 +76,8 @@ class SAM_noise():
         w = (w/np.linalg.norm(w)) * np.arccos(np.dot(dir, np.array([0, 0, 1])))
         R = pin.exp3(w)
         C_co[3:6, 3:6] = R @ np.diag(v) @ R.T
-        T_oc = np.linalg.inv(T_co)
+        # T_oc = np.linalg.inv(T_co)
+        T_oc = gtsam.Pose3(T_co).inverse().matrix()
         C_oo = SAM_noise.transform_cov(T_oc, C_co)
         # cov[3:6, 3:6] = T_bc[:3, :3] @ cov[3:6, 3:6] @ T_bc[:3, :3].T  # transform covariance matrix from camera frame to object frame
         noise = gtsam.noiseModel.Gaussian.Covariance(C_oo)

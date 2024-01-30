@@ -5,6 +5,7 @@ import cv2
 from SAM import SAM
 import pickle
 from compare_gt_predictions2 import plot_split_results
+import time
 
 def load_data(path: Path):
     with open(path, 'rb') as file:
@@ -36,7 +37,8 @@ def example_with_vizualization():
 def example_on_frames_prediction():
     base_path = Path(__file__).parent.parent / "datasets"
     # dataset_path = base_path / "crackers_new"
-    dataset_path = base_path / "test1"
+    dataset_path = base_path / "static_medium"
+    # dataset_path = base_path / "static1"
     # dataset_path = base_path / "dynamic1"
     sam = SAM()
     frames_gt = load_data(dataset_path / "frames_gt.p")
@@ -45,13 +47,13 @@ def example_on_frames_prediction():
     estimate_progress = []
     for i, img_name in enumerate(sorted(os.listdir(dataset_path / "frames"))):
         img_path = dataset_path / "frames" / img_name
-        frame = cv2.imread(str(img_path))
+        # frame = cv2.imread(str(img_path))
         sam.insert_T_bc_detection(frames_gt[i]['Camera'])
         for key in frames_prediction[i]:
             sam.insert_T_co_detections(frames_prediction[i][key], key)
         sam.update_estimate()
         # estimate_progress.append(sam.export_current_state())
-        fig = sam.draw_3d_estimate_mm()
+        # fig = sam.draw_3d_estimate_mm()
         # fig.savefig(dataset_path/"gtsam_viz"/f'{i:04}.png')
         poses = sam.get_all_T_co()
         refined.append(poses)
@@ -64,7 +66,9 @@ def example_on_frames_prediction():
     # plot_split_results(objects_to_plot, frames_gt, [refined])
 
 if __name__ == "__main__":
+    start_time = time.time()
     # bare_minimum_example()
     # example_with_vizualization()
     example_on_frames_prediction()
+    print(f"elapsed time: {time.time() - start_time:.2} s")
     # main()

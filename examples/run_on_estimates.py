@@ -175,10 +175,10 @@ def Pose3_ISAM2_example():
     # camera_poses = create_poses()
     dataset_path = Path(__file__).parent.parent / "datasets" / "crackers_new"
     # camera_poses, landmark_poses = load_camera_landmarks(dataset_path/"frames_gt.p", dataset_path/"frames_gt.p")
-    camera_poses, landmark_poses = load_camera_landmarks(dataset_path/"frames_gt.p", dataset_path/"frames_prediction.p")
+    camera_poses, landmark_poses = load_camera_landmarks(dataset_path/"frames_gt.p", dataset_path/"frames_prediction1.p")
     # camera_poses = load_poses(dataset_path / "frames_gt.p")
     # true_landmarks = load_static_landmarks(dataset_path / "frames_gt.p")
-    # landmark_poses = load_landmark_measurements(dataset_path / "frames_prediction.p")
+    # landmark_poses = load_landmark_measurements(dataset_path / "frames_prediction1.p")
     # camera_poses = 1
     # Create the ground truth odometry transformations, xyz translations, and roll-pitch-yaw rotations
     # between each robot pose in the trajectory.
