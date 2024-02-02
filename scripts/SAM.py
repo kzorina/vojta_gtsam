@@ -140,7 +140,7 @@ class SAM():
         for i in range(D.shape[1]):
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
-            if minimum < 1000:
+            if minimum < 500:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
@@ -176,6 +176,7 @@ class SAM():
                 self.add_new_landmark(symbol, pose, noise, object_name)
         else:
             D: np.ndarray = self.calculate_D(T_cn_s, noises, object_name)
+            # print(object_name, D)
             assignment = self.determine_assignment(D)
             for j in range(len(T_cn_s)):
                 i = assignment[j]
@@ -193,7 +194,8 @@ class SAM():
                     estimate = T_bc.compose(pose)
                     self.initial_estimate.insert(symbol, estimate)
                     odometry = gtsam.Pose3(np.eye(4))
-                    time_elapsed = 0.000000000001
+                    # time_elapsed = 0.000000000001
+                    time_elapsed = 0.00001
                     odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6)*time_elapsed)
                     self.graph.add(gtsam.BetweenFactorPose3(symbol - 1, symbol, odometry, odometry_noise))
                     self.new_graph.add(gtsam.BetweenFactorPose3(symbol - 1, symbol, odometry, odometry_noise))
