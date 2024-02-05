@@ -140,7 +140,7 @@ class SAM():
         for i in range(D.shape[1]):
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
-            if minimum < 500:
+            if minimum < 100:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
@@ -195,12 +195,13 @@ class SAM():
                     self.initial_estimate.insert(symbol, estimate)
                     odometry = gtsam.Pose3(np.eye(4))
                     # time_elapsed = 0.000000000001
-                    time_elapsed = 0.00001
+                    time_elapsed = 1.0
                     odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6)*time_elapsed)
                     self.graph.add(gtsam.BetweenFactorPose3(symbol - 1, symbol, odometry, odometry_noise))
                     self.new_graph.add(gtsam.BetweenFactorPose3(symbol - 1, symbol, odometry, odometry_noise))
                     ################## without motion model:
                     # symbol = self.detected_landmarks[object_name][i]
+                    # self.new_graph.add(gtsam.BetweenFactorPose3(self.camera_key, symbol, pose, noise))
                     # self.graph.add(gtsam.BetweenFactorPose3(self.camera_key, symbol, pose, noise))
 
     def update_estimate(self):  # call after each change of camera pose
@@ -296,14 +297,16 @@ class SAM():
                 cov = marginals.marginalCovariance(i)
                 gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
                 axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
-        for i in self.graph.keyVector():
-            current_pose = self.current_estimate.atPose3(i)
-            name = str(Symbol(i).string())
-            if name[0] == "x":
-                cov = marginals.marginalCovariance(i)
-                gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
-                # gtsam_plot.plot_covariance_ellipse_3d(axes, current_pose.translation(), cov[:3, :3], alpha=0.3, cmap='cool')
-                axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
+
+        # for i in self.graph.keyVector():
+        for i in range(max(self.current_frame - 10, 1), self.current_frame):
+            key = X(i)
+            current_pose = self.current_estimate.atPose3(key)
+            name = str(Symbol(key).string())
+            cov = marginals.marginalCovariance(key)
+            gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
+            # gtsam_plot.plot_covariance_ellipse_3d(axes, current_pose.translation(), cov[:3, :3], alpha=0.3, cmap='cool')
+            axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
 
         ranges = (-0.8, 0.8)
         axes.set_xlim3d(ranges[0], ranges[1])

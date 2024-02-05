@@ -21,6 +21,8 @@ class SAM_noise():
 
     @staticmethod
     def get_panda_eef_cov():
+        # exp_sigma = 0.000001  # norm in radians
+        # xyz_sigma = 0.000001  # in meters
         exp_sigma = 0.000001  # norm in radians
         xyz_sigma = 0.000001  # in meters
         # exp, x, y, z
@@ -65,11 +67,13 @@ class SAM_noise():
         """
         exp_sigma = 0.002  # norm in radians
         xyz_sigma = 0.00001  # in meters
+        # exp_sigma = 0.004  # norm in radians
+        # xyz_sigma = 0.00002  # in meters
         z = T_co[2, 3]  # distance from camera
         a = 0.010  # object size estimate, meters
         v = np.array(((xyz_sigma * z)/f,
                       (xyz_sigma * z)/f,
-                      (xyz_sigma * 0.05 * z**2)/(a*f*f)))
+                      (xyz_sigma * 2 * z**2)/(a*f)))
         dir = T_co[:3, 3]/np.linalg.norm(T_co[:3, 3])
         C_co = np.diag([exp_sigma, exp_sigma, exp_sigma, 0, 0, 0])
         w = np.cross(np.array([0, 0, 1]), dir)

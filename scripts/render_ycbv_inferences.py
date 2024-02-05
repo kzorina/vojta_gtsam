@@ -125,25 +125,16 @@ def make_object_dataset(example_dir: Path) -> RigidObjectDataset:
     rigid_object_dataset = RigidObjectDataset(rigid_objects)
     return rigid_object_dataset
 
-def rendering(predictions, dataset_dir, renderer, K=None):
-    labels = predictions.infos["label"]
-    idxs = predictions.infos["coarse_instance_idx"]
-    # rendering
-    if K is None:
-        if os.path.exists(dataset_dir / "camera_data.json"):
-            camera_data = CameraData.from_json((dataset_dir / "camera_data.json").read_text())
-        else:
-            camera_data = CameraData.from_json((dataset_dir.parent / "camera_data.json").read_text())
-    else:
-        camera_data = CameraData
-        camera_data.K = K
+def rendering(predictions, renderer, K, resolution=(640, 480)):
+    camera_data = CameraData
+    camera_data.K = K
     camera_data.TWC = Transform(np.eye(4))
-    # Data necessary for image rendering
+    camera_data.resolution = resolution
     object_datas = []
-    for idx, rough_label in zip(idxs, labels):
-        pred = predictions.poses[idx].numpy()
-        label = YCBV_OBJECT_NAMES[rough_label.split("-")[1]]
-        object_datas.append(ObjectData(label=label, TWO=Transform(pred)))
+    for label in predictions:
+        if label != "Camera":
+            for T_co in predictions[label]:
+                object_datas.append(ObjectData(label=label, TWO=Transform(T_co)))
     camera_data, object_datas = convert_scene_observation_to_panda3d(camera_data, object_datas)
     light_datas = [
         Panda3dLightData(
@@ -158,8 +149,7 @@ def rendering(predictions, dataset_dir, renderer, K=None):
         render_depth=False,
         render_binary_mask=False,
         render_normals=False,
-        # copy_arrays=True,
-        copy_arrays=False,
+        copy_arrays=True,
     )[0]
     return renderings
 
@@ -211,80 +201,63 @@ def __refresh_dir(path):
         shutil.rmtree(path, ignore_errors=False, onerror=None)
     os.makedirs(path)
 
-def get_scene_camera(path):
+def load_scene_camera(path):
     with open(path) as json_file:
         data:dict = json.load(json_file)
     parsed_data = []
     for i in range(len(data)):
         entry = {}
         entry["cam_K"] = np.array(data[str(i+1)]["cam_K"]).reshape((3, 3))
-        T_wc = np.zeros((4, 4))
-        T_wc[:3, :3] = np.array(data[str(i+1)]["cam_R_w2c"]).reshape((3, 3))
-        T_wc[3, :3] = np.array(data[str(i+1)]["cam_t_w2c"])
-        T_wc[3, 3] = 1
-        entry["T_wc"] = T_wc
+        T_cw = np.zeros((4, 4))
+        T_cw[:3, :3] = np.array(data[str(i+1)]["cam_R_w2c"]).reshape((3, 3))
+        T_cw[:3, 3] = np.array(data[str(i+1)]["cam_t_w2c"])/1000
+        T_cw[3, 3] = 1
+        entry["T_cw"] = T_cw
         parsed_data.append(entry)
     return parsed_data
 
-
-def run_inference(dataset_dir: Path, CosyPose) -> None:
-    DATASET_NAME = int(dataset_dir.name)
-
-    img_names = sorted(os.listdir(dataset_dir / "rgb"))
-    # renderer = Panda3dSceneRenderer(object_dataset)
-    scene_camera = get_scene_camera(dataset_dir/"scene_camera.json")
-
-    start_time = time.time()
-    all_predictions = []
-    for i in range(len(img_names)):
-        K = scene_camera[i]["cam_K"]
-
-        img_name = img_names[i]
-        frame_processing_time_start = time.time()
-        img_path = dataset_dir / "rgb" / img_name
-        rgb, depth, camera_data = load_observation(dataset_dir, img_path, K=K)
-        observation = data_to_observation(rgb, depth, camera_data)
-        predictions = CosyPose.inference(observation)
-
-        # renderings = rendering(predictions, dataset_dir, renderer, K=K)
-        # save_prediction_img(dataset_dir / "output", img_name, rgb, renderings.rgb)
-        all_predictions.append(predictions_to_dict(predictions))
-        del observation
-        # del predictions
-        # # torch.cuda.empty_cache()
-        # gc.collect()
-        print(f"\r({i+1}/{len(img_names)})"
-              f" inferenced successfully."
-              f"  {(time.time() - frame_processing_time_start):.4f}s"
-              f" ({(time.time() - start_time)/60:.2f}min)",
-              end='')
-
-    print(f"\nruntime: {(time.time() - start_time):.2f}s for {len(img_names)} images")
-    save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
-    export_bop(convert_frames_to_bop({DATASET_NAME: all_predictions}), dataset_dir / 'frames_prediction.csv')
-
+def load_data(path: Path):
+    with open(path, 'rb') as file:
+        data = pickle.load(file)
+    return data
 
 def main():
-    #  in case of OOM error try this:
-    #  export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:32
-    # torch.cuda.empty_cache()
     set_logging_level("info")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     MESHES_PATH = DATASETS_PATH/"meshes"
 
     DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]
-    object_dataset = make_object_dataset(MESHES_PATH)
-    CosyPose = CosyPoseWrapper(dataset_name="ycbv", n_workers=8)
-    # dataset_name = "crackers_new"
-    # dataset_name = "static_medium"
 
-    # dataset_name = "dynamic1"
-    # dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
-    for DATASET_NAME in DATASET_NAMES[11:]:
-        print(f"{DATASETS_PATH/DATASET_NAME}:")
-        DATASET_PATH = DATASETS_PATH / "test" / DATASET_NAME
-        __refresh_dir(DATASET_PATH / "output")
-        run_inference(DATASET_PATH, CosyPose)
+    object_dataset = make_object_dataset(MESHES_PATH)
+    renderer = Panda3dSceneRenderer(object_dataset)
+
+    dataset_name = DATASET_NAMES[0]
+    for dataset_name in DATASET_NAMES:
+        print(f"\n{dataset_name}:")
+        dataset_path = DATASETS_PATH / "test" / dataset_name
+        __refresh_dir(dataset_path/"output_gtsam")
+        scene_camera = load_scene_camera(dataset_path / "scene_camera.json")
+        img_names = sorted(os.listdir(dataset_path / "rgb"))
+
+        frames_prediction = load_data(dataset_path / "frames_refined_prediction.p")
+        # T_co_0 = np.array(((0, 0, 1, 0),
+        #                      (0, 1, 0, 0),
+        #                      (1, 0, 0, 1.0),
+        #                      (0, 0, 0, 1)))
+        # T_wc_0 = np.linalg.inv(scene_camera[0]["T_wc"])
+        # T_wo = T_wc_0 @ T_co_0
+        for i in range(0, len(img_names), 1):
+            img_name = img_names[i]
+            rgb = np.array(Image.open(dataset_path/"rgb"/img_name), dtype=np.uint8)
+            K = scene_camera[i]["cam_K"]
+            # T_wc = np.linalg.inv(scene_camera[i]["T_wc"])
+            # T_co = np.linalg.inv(T_wc)@T_wo
+            # artificial_prediction = {"02_cracker_box": [T_co]}
+            # renderings = rendering(artificial_prediction, renderer, K, rgb.shape[:2])
+            renderings = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
+            save_prediction_img(dataset_path / "output_gtsam", img_name, rgb, renderings.rgb)
+            print(f"\r({i+1}/{len(img_names)})", end='')
+
 
 if __name__ == "__main__":
     main()
