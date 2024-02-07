@@ -26,12 +26,43 @@ YCBV_OBJECT_IDS = {"01_master_chef_can":1,
     "20_extra_large_clamp":20,
     "21_foam_brick":21}
 
+HOPE_OBJECT_IDS = {"AlphabetSoup":1,
+    "BBQSauce":2,
+    "Butter":3,
+    "Cherries":4,
+    "ChocolatePudding":5,
+    "Cookies":6,
+    "Corn":7,
+    "CreamCheese":8,
+    "GranolaBars":9,
+    "GreenBeans":10,
+    "Ketchup":11,
+    "MacaroniAndCheese":12,
+    "Mayo":13,
+    "Milk":14,
+    "Mushrooms":15,
+    "Mustard":16,
+    "OrangeJuice":17,
+    "Parmesan":18,
+    "Peaches":19,
+    "PeasAndCarrots":20,
+    "Pineapple":21,
+    "Popcorn":22,
+    "Raisins":23,
+    "SaladDressing":24,
+    "Spaghetti":25,
+    "TomatoSauce":26,
+    "Tuna":27,
+    "Yogurt":28}
+
+OBJECT_IDS = {"ycbv": YCBV_OBJECT_IDS,
+              "hope":HOPE_OBJECT_IDS}
 def load_data(path: Path):
     with open(path, 'rb') as file:
         data = pickle.load(file)
     return data
 
-def convert_frames_to_bop(frames: dict[[dict]]) -> [dict]:
+def convert_frames_to_bop(frames: dict[[dict]], dataset_name="ycbv") -> [dict]:
     """
     :param frames: {"[scene_id]": [{"object_name": [T_co, T_co, T_co...]}]}
     :returns [{"scene_id":[scene_id],
@@ -43,6 +74,7 @@ def convert_frames_to_bop(frames: dict[[dict]]) -> [dict]:
                "time":...}]
     """
     output = []
+
     for scene_id in frames:
         for im_id in range(len(frames[scene_id])):
             for obj_id in frames[scene_id][im_id]:
@@ -51,7 +83,7 @@ def convert_frames_to_bop(frames: dict[[dict]]) -> [dict]:
                     t = " ".join(list(map(str, (T_co[:3, 3]*1000).flatten().tolist())))
                     time = -1
                     score = 1
-                    entry = {"scene_id":scene_id, "im_id":im_id + 1, "obj_id":YCBV_OBJECT_IDS[obj_id], "score":score, "R":R, "t":t, "time":time}
+                    entry = {"scene_id":scene_id, "im_id":im_id + 1, "obj_id":OBJECT_IDS[dataset_name][obj_id], "score":score, "R":R, "t":t, "time":time}
                     output.append(entry)
     return output
 

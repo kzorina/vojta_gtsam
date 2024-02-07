@@ -20,7 +20,6 @@ from bokeh.io import export_png
 from bokeh.plotting import gridplot
 from PIL import Image
 import pickle
-
 # from happypose.pose_estimators.cosypose.cosypose.config import LOCAL_DATA_DIR
 from happypose.pose_estimators.cosypose.cosypose.utils.cosypose_wrapper import (
     CosyPoseWrapper,
@@ -55,6 +54,7 @@ import shutil
 from bop_tools import convert_frames_to_bop, export_bop
 
 import cv2
+import pinocchio as pin
 
 YCBV_OBJECT_NAMES = {"obj_000001": "01_master_chef_can",
     "obj_000002": "02_cracker_box",
@@ -77,6 +77,35 @@ YCBV_OBJECT_NAMES = {"obj_000001": "01_master_chef_can",
     "obj_000019": "19_large_clamp",
     "obj_000020": "20_extra_large_clamp",
     "obj_000021": "21_foam_brick"}
+
+HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
+    "obj_000002": "BBQSauce",
+    "obj_000003": "Butter",
+    "obj_000004": "Cherries",
+    "obj_000005": "ChocolatePudding",
+    "obj_000006": "Cookies",
+    "obj_000007": "Corn",
+    "obj_000008": "CreamCheese",
+    "obj_000009": "GranolaBars",
+    "obj_000010": "GreenBeans",
+    "obj_000011": "Ketchup",
+    "obj_000012": "MacaroniAndCheese",
+    "obj_000013": "Mayo",
+    "obj_000014": "Milk",
+    "obj_000015": "Mushrooms",
+    "obj_000016": "Mustard",
+    "obj_000017": "OrangeJuice",
+    "obj_000018": "Parmesan",
+    "obj_000019": "Peaches",
+    "obj_000020": "PeasAndCarrots",
+    "obj_000021": "Pineapple",
+    "obj_000022": "Popcorn",
+    "obj_000023": "Raisins",
+    "obj_000024": "SaladDressing",
+    "obj_000025": "Spaghetti",
+    "obj_000026": "TomatoSauce",
+    "obj_000027": "Tuna",
+    "obj_000028": "Yogurt"}
 
 
 # logger = get_logger(__name__)
@@ -221,43 +250,78 @@ def load_data(path: Path):
         data = pickle.load(file)
     return data
 
+
+def load_scene_gt(path, label_list = None):
+    with open(path) as json_file:
+        data:dict = json.load(json_file)
+    parsed_data = []
+    for i in range(len(data)):
+        entry = {}
+        frame = i+1
+        for object in data[str(frame)]:
+            T_cm = np.zeros((4, 4))
+            rot = np.array(((0, 1, 0),
+                            (0, 0, 1),
+                            (1, 0, 0)))
+            T_cm[:3, :3] = np.array(object["cam_R_m2c"]).reshape((3, 3))
+            T_cm[:3, :3] = T_cm[:3, :3]@rot
+            T_cm[:3, 3] = np.array(object["cam_t_m2c"]) / 1000
+            T_cm[3, 3] = 1
+            obj_id = object["obj_id"]
+            if label_list is not None:
+                entry[label_list[obj_id-1]] = [T_cm]
+            else:
+                entry[obj_id] = [T_cm]
+        parsed_data.append(entry)
+    return parsed_data
+
 def main():
     set_logging_level("info")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
+    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hope_video")
     MESHES_PATH = DATASETS_PATH/"meshes"
 
-    DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]
+    # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]
+    DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
 
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)
 
     dataset_name = DATASET_NAMES[0]
-    for dataset_name in DATASET_NAMES:
+    for dataset_name in DATASET_NAMES[0:]:
         print(f"\n{dataset_name}:")
         dataset_path = DATASETS_PATH / "test" / dataset_name
-        __refresh_dir(dataset_path/"output_gtsam")
+        output_dir = dataset_path / "output_cosypose"
+        __refresh_dir(output_dir)
         scene_camera = load_scene_camera(dataset_path / "scene_camera.json")
+        # scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(YCBV_OBJECT_NAMES.values()))
+        scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(HOPE_OBJECT_NAMES.values()))
         img_names = sorted(os.listdir(dataset_path / "rgb"))
+        frames_prediction = load_data(dataset_path / "frames_prediction.p")
+        # frames_prediction = load_data(dataset_path / "frames_refined_prediction.p")
 
-        frames_prediction = load_data(dataset_path / "frames_refined_prediction.p")
         # T_co_0 = np.array(((0, 0, 1, 0),
         #                      (0, 1, 0, 0),
-        #                      (1, 0, 0, 1.0),
+        #                      (1, 0, 0, 0.8),
         #                      (0, 0, 0, 1)))
-        # T_wc_0 = np.linalg.inv(scene_camera[0]["T_wc"])
+        T_wc_0 = np.linalg.inv(scene_camera[0]["T_cw"])
+        # T_co_0 = scene_gt[0]
         # T_wo = T_wc_0 @ T_co_0
         for i in range(0, len(img_names), 1):
             img_name = img_names[i]
             rgb = np.array(Image.open(dataset_path/"rgb"/img_name), dtype=np.uint8)
             K = scene_camera[i]["cam_K"]
-            # T_wc = np.linalg.inv(scene_camera[i]["T_wc"])
-            # T_co = np.linalg.inv(T_wc)@T_wo
-            # artificial_prediction = {"02_cracker_box": [T_co]}
+            # T_cw = scene_camera[i]["T_cw"]
+            # T_co = T_cw@T_wo
+            # artificial_prediction = {"03_sugar_box": [T_co]}
             # renderings = rendering(artificial_prediction, renderer, K, rgb.shape[:2])
+            # renderings = rendering(scene_gt[i], renderer, K, rgb.shape[:2])
             renderings = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
-            save_prediction_img(dataset_path / "output_gtsam", img_name, rgb, renderings.rgb)
+            save_prediction_img(output_dir, img_name, rgb, renderings.rgb)
             print(f"\r({i+1}/{len(img_names)})", end='')
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     main()
+    print(f"\nelapsed time: {time.time() - start_time:.2f} s")

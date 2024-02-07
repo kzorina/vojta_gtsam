@@ -78,6 +78,36 @@ YCBV_OBJECT_NAMES = {"obj_000001": "01_master_chef_can",
     "obj_000020": "20_extra_large_clamp",
     "obj_000021": "21_foam_brick"}
 
+HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
+    "obj_000002": "BBQSauce",
+    "obj_000003": "Butter",
+    "obj_000004": "Cherries",
+    "obj_000005": "ChocolatePudding",
+    "obj_000006": "Cookies",
+    "obj_000007": "Corn",
+    "obj_000008": "CreamCheese",
+    "obj_000009": "GranolaBars",
+    "obj_000010": "GreenBeans",
+    "obj_000011": "Ketchup",
+    "obj_000012": "MacaroniAndCheese",
+    "obj_000013": "Mayo",
+    "obj_000014": "Milk",
+    "obj_000015": "Mushrooms",
+    "obj_000016": "Mustard",
+    "obj_000017": "OrangeJuice",
+    "obj_000018": "Parmesan",
+    "obj_000019": "Peaches",
+    "obj_000020": "PeasAndCarrots",
+    "obj_000021": "Pineapple",
+    "obj_000022": "Popcorn",
+    "obj_000023": "Raisins",
+    "obj_000024": "SaladDressing",
+    "obj_000025": "Spaghetti",
+    "obj_000026": "TomatoSauce",
+    "obj_000027": "Tuna",
+    "obj_000028": "Yogurt"}
+
+OBJECT_NAMES = HOPE_OBJECT_NAMES
 
 # logger = get_logger(__name__)
 
@@ -142,7 +172,7 @@ def rendering(predictions, dataset_dir, renderer, K=None):
     object_datas = []
     for idx, rough_label in zip(idxs, labels):
         pred = predictions.poses[idx].numpy()
-        label = YCBV_OBJECT_NAMES[rough_label.split("-")[1]]
+        label = OBJECT_NAMES[rough_label.split("-")[1]]
         object_datas.append(ObjectData(label=label, TWO=Transform(pred)))
     camera_data, object_datas = convert_scene_observation_to_panda3d(camera_data, object_datas)
     light_datas = [
@@ -180,7 +210,7 @@ def predictions_to_dict(predictions):
     poses_tensor: torch.Tensor = predictions.tensors["poses"]
     for idx, label in enumerate(predictions.infos["label"]):
         pose = poses_tensor[idx].numpy()
-        obj_name = YCBV_OBJECT_NAMES[label.split("-")[1]]
+        obj_name = OBJECT_NAMES[label.split("-")[1]]
         if obj_name not in entry:
             entry[obj_name] = []
         entry[obj_name].append(pose)
@@ -261,7 +291,7 @@ def run_inference(dataset_dir: Path, CosyPose) -> None:
 
     print(f"\nruntime: {(time.time() - start_time):.2f}s for {len(img_names)} images")
     save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
-    export_bop(convert_frames_to_bop({DATASET_NAME: all_predictions}), dataset_dir / 'frames_prediction.csv')
+    # export_bop(convert_frames_to_bop({DATASET_NAME: all_predictions}), dataset_dir / 'frames_prediction.csv')
 
 
 def main():
@@ -269,18 +299,21 @@ def main():
     #  export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:32
     # torch.cuda.empty_cache()
     set_logging_level("info")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hope_video")
+    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     MESHES_PATH = DATASETS_PATH/"meshes"
 
-    DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]
+    # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]  # ycbv
+    DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]  # hope
     object_dataset = make_object_dataset(MESHES_PATH)
-    CosyPose = CosyPoseWrapper(dataset_name="ycbv", n_workers=8)
+    # CosyPose = CosyPoseWrapper(dataset_name="ycbv", n_workers=8)
+    CosyPose = CosyPoseWrapper(dataset_name="hope", n_workers=8)
     # dataset_name = "crackers_new"
     # dataset_name = "static_medium"
 
     # dataset_name = "dynamic1"
     # dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
-    for DATASET_NAME in DATASET_NAMES[11:]:
+    for DATASET_NAME in DATASET_NAMES[0:]:
         print(f"{DATASETS_PATH/DATASET_NAME}:")
         DATASET_PATH = DATASETS_PATH / "test" / DATASET_NAME
         __refresh_dir(DATASET_PATH / "output")
