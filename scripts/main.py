@@ -96,9 +96,8 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
     for i, img_name in enumerate(images):
         img_path = dataset_path / "rgb" / img_name
         sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
-        if (i % 20) == 0:
-            for key in frames_prediction[i]:
-                sam.insert_T_co_detections(frames_prediction[i][key], key)
+        for key in frames_prediction[i]:
+            sam.insert_T_co_detections(frames_prediction[i][key], key)
         sam.update_estimate()
         # estimate_progress.append(sam.export_current_state())
         # fig = sam.draw_3d_estimate_mm()
@@ -122,16 +121,14 @@ def annotate_dataset(DATASETS_PATH, datasets):
         results[DATASET_NAME] = result
     # export_bop(convert_frames_to_bop(results), DATASETS_PATH / 'frames_refined_predictions.csv')
 
-def merge_inferences(merge_from="frames_prediction.p", merge_to = 'frames_predictions.csv', dataset_name="ycbv"):
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
-    datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
+def merge_inferences(DATASETS_PATH, datasets, merge_from="frames_prediction.p", merge_to = 'frames_predictions.csv', dataset_name="ycbv"):
     # datasets = [48]
     results = {}
     for DATASET_NAME in datasets:
         dataset_path = DATASETS_PATH / "test" / f"{DATASET_NAME:06}"
         result = load_data(dataset_path/merge_from)
         results[DATASET_NAME] = result
-    export_bop(convert_frames_to_bop(results), DATASETS_PATH / merge_to, dataset_name=dataset_name)
+    export_bop(convert_frames_to_bop(results, dataset_name), DATASETS_PATH / merge_to)
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -141,11 +138,11 @@ if __name__ == "__main__":
     # example_on_frames_prediction()
     # refine_ysbv_inference(Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv"), 50)
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hope_video")
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
-    datasets = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     annotate_dataset(DATASETS_PATH, datasets)
-    merge_inferences("frames_refined_prediction.p", 'gtsam_ycbv-test_20-0-000001-20-I.csv', dataset_name)
-    # merge_inferences("frames_prediction.p", 'cosypose_ycbv-test_transposedR.csv')
+    merge_inferences(DATASETS_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_filter_2.csv', dataset_name)
+    # merge_inferences(DATASETS_PATH, datasets, "frames_prediction.p", 'cosypose_hopeVideo-test_masks.csv', dataset_name)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

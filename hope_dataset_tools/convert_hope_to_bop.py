@@ -58,7 +58,7 @@ def __export_json(data, path):
 
 def main():
     DATASETS_DIR = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
-    DATASET_NAME = "hope_video"
+    DATASET_NAME = "hopeVideo"
     dataset_path = DATASETS_DIR/DATASET_NAME
     __soft_refresh_dir(dataset_path)
     __soft_refresh_dir(dataset_path/"test")
@@ -82,10 +82,14 @@ def main():
             pass
             K = np.array(gt_data["camera"]["intrinsics"])
             T_cw = np.array(gt_data["camera"]["extrinsics"])
-            scene_camera[f"{i+1}"] = {"cam_K":K.flatten().tolist(), "cam_R_w2c":T_cw[:3, :3].flatten().tolist(), "cam_t_w2c":(T_cw[:3, 3].flatten()*1000).tolist(), "depth_scale":123}
+            scene_camera[f"{i+1}"] = {"cam_K":K.flatten().tolist(), "cam_R_w2c":T_cw[:3, :3].flatten().tolist(), "cam_t_w2c":(T_cw[:3, 3].flatten()*1000).tolist(), "depth_scale":1}
             scene_gt[f"{i+1}"] = []
             for object in gt_data["objects"]:
                 T_cm = np.array(object["pose"])
+                rot = np.array(((0, 1, 0),
+                                (0, 0, 1),
+                                (1, 0, 0)))
+                T_cm[:3, :3] = T_cm[:3, :3]@rot
                 obj_name = object["class"]
                 scene_gt[f"{i+1}"].append({"cam_R_m2c":T_cm[:3, :3].flatten().tolist(), "cam_t_m2c":(T_cm[:3, 3].flatten()*10).tolist(), "obj_id":OBJ_IDS[obj_name]})
         __export_json(scene_camera, scene_out_path/"scene_camera.json")

@@ -56,7 +56,7 @@ HOPE_OBJECT_IDS = {"AlphabetSoup":1,
     "Yogurt":28}
 
 OBJECT_IDS = {"ycbv": YCBV_OBJECT_IDS,
-              "hope":HOPE_OBJECT_IDS}
+              "hope": HOPE_OBJECT_IDS}
 def load_data(path: Path):
     with open(path, 'rb') as file:
         data = pickle.load(file)

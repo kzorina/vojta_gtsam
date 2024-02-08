@@ -260,11 +260,8 @@ def load_scene_gt(path, label_list = None):
         frame = i+1
         for object in data[str(frame)]:
             T_cm = np.zeros((4, 4))
-            rot = np.array(((0, 1, 0),
-                            (0, 0, 1),
-                            (1, 0, 0)))
             T_cm[:3, :3] = np.array(object["cam_R_m2c"]).reshape((3, 3))
-            T_cm[:3, :3] = T_cm[:3, :3]@rot
+            T_cm[:3, :3] = T_cm[:3, :3]
             T_cm[:3, 3] = np.array(object["cam_t_m2c"]) / 1000
             T_cm[3, 3] = 1
             obj_id = object["obj_id"]
@@ -278,7 +275,7 @@ def load_scene_gt(path, label_list = None):
 def main():
     set_logging_level("info")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hope_video")
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
     MESHES_PATH = DATASETS_PATH/"meshes"
 
     # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]
@@ -291,14 +288,14 @@ def main():
     for dataset_name in DATASET_NAMES[0:]:
         print(f"\n{dataset_name}:")
         dataset_path = DATASETS_PATH / "test" / dataset_name
-        output_dir = dataset_path / "output_cosypose"
+        output_dir = dataset_path / "output_gtsam_filter"
         __refresh_dir(output_dir)
         scene_camera = load_scene_camera(dataset_path / "scene_camera.json")
         # scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(YCBV_OBJECT_NAMES.values()))
         scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(HOPE_OBJECT_NAMES.values()))
         img_names = sorted(os.listdir(dataset_path / "rgb"))
         frames_prediction = load_data(dataset_path / "frames_prediction.p")
-        # frames_prediction = load_data(dataset_path / "frames_refined_prediction.p")
+        frames_refined_prediction = load_data(dataset_path / "frames_refined_prediction.p")
 
         # T_co_0 = np.array(((0, 0, 1, 0),
         #                      (0, 1, 0, 0),
@@ -316,7 +313,8 @@ def main():
             # artificial_prediction = {"03_sugar_box": [T_co]}
             # renderings = rendering(artificial_prediction, renderer, K, rgb.shape[:2])
             # renderings = rendering(scene_gt[i], renderer, K, rgb.shape[:2])
-            renderings = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
+            # renderings = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
+            renderings = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
             save_prediction_img(output_dir, img_name, rgb, renderings.rgb)
             print(f"\r({i+1}/{len(img_names)})", end='')
 
