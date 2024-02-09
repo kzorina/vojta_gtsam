@@ -19,7 +19,7 @@ class Landmark:
         self.last_seen_frame = frame
 
     def is_valid(self, current_frame):
-        n = 4
+        n = 2
         if (self.number_of_detections >= n or (current_frame - self.innitial_frame) < n) and current_frame - self.last_seen_frame < 200:
             return True
         return False
@@ -154,7 +154,7 @@ class SAM():
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
             # print(minimum)
-            if minimum < 10:
+            if minimum < 20:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
@@ -228,6 +228,8 @@ class SAM():
         # self.marginals = gtsam.Marginals(self.graph, self.current_estimate)
         self.initial_estimate.clear()
         self.new_graph = gtsam.NonlinearFactorGraph()
+        # marginals = gtsam.Marginals(self.graph, self.current_estimate)
+
 
     def get_all_T_bo(self):  # TODO: make compatible with duplicates
         ret = {}
