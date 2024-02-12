@@ -41,6 +41,7 @@ class SAM():
         # self.landmark_symbols: Dict[str:Symbol] = {}  # {object_name: symbol}
         self.detected_landmarks: Dict[str:[Symbol]] = {}
         self.landmark_count = 0
+        self.all_factors_count = 0
         # self.detected_landmarks: Set = set()
 
         self.last_T_bc = None  # the last recorded T_bc transformation
@@ -63,7 +64,7 @@ class SAM():
         noise = SAM_noise.get_panda_eef_noise()
         self.graph.add(gtsam.PriorFactorPose3(self.camera_key, pose, noise))
         self.new_graph.add(gtsam.PriorFactorPose3(self.camera_key, pose, noise))
-
+        self.all_factors_count += 1
         self.initial_estimate.insert(self.camera_key, pose)
         if self.current_estimate == None:
             self.current_estimate = self.initial_estimate
@@ -128,7 +129,8 @@ class SAM():
         T_bc: gtsam.Pose3 = gtsam.Pose3(self.last_T_bc)
         if object_name in self.detected_landmarks:
             for landmark in self.detected_landmarks[object_name]:
-                T_bo_s.append(self.current_estimate.atPose3(landmark.symbol))
+                # T_bo_s.append(self.current_estimate.atPose3(landmark.symbol))
+                T_bo_s.append(self.current_estimate.atPose3(landmark.symbol - 1))
                 # Q_oo.append(self.marginals.marginalCovariance(symbol))
         D = np.ndarray((len(T_bo_s), len(T_cn_s)))
         for i in range(len(T_bo_s)):
@@ -163,12 +165,28 @@ class SAM():
     def add_new_landmark(self, symbol, pose, noise, object_name):
         self.graph.add(gtsam.BetweenFactorPose3(self.camera_key, symbol, pose, noise))
         self.new_graph.add(gtsam.BetweenFactorPose3(self.camera_key, symbol, pose, noise))
+        self.all_factors_count += 1
 
         self.detected_landmarks[object_name].append(Landmark(symbol, self.current_frame))
         # estimate = self.current_estimate.atPose3(self.camera_key).compose(pose)
         estimate = gtsam.Pose3(self.last_T_bc).compose(pose)
         self.initial_estimate.insert(symbol, estimate)
         self.landmark_count += 1
+
+    def insert_odometry_measurements(self):
+        for object_name in self.detected_landmarks:
+            for landmark in self.detected_landmarks[object_name]:
+                landmark.symbol += 1
+                odometry = gtsam.Pose3(np.eye(4))
+                # time_elapsed = 0.000000000001
+                time_elapsed = 0.000001
+                odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
+                self.graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
+                self.new_graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
+                self.all_factors_count += 1
+
+                estimate = self.current_estimate.atPose3(landmark.symbol - 1)
+                self.initial_estimate.insert(landmark.symbol, estimate)
 
     def insert_T_co_detections(self, T_cn_s: [np.ndarray], object_name: str):
         """
@@ -188,7 +206,7 @@ class SAM():
                 pose = gtsam.Pose3(T_cn_s[j])
                 noise = noises[j]
                 self.add_new_landmark(symbol, pose, noise, object_name)
-        else:
+        else:  # instance of the object has been previously detected
             D: np.ndarray = self.calculate_D(T_cn_s, noises, object_name)
             # print(object_name, D)
             assignment = self.determine_assignment(D)
@@ -196,39 +214,62 @@ class SAM():
                 i = assignment[j]
                 pose = gtsam.Pose3(T_cn_s[j])
                 noise = noises[j]
-                if i == -1:
+                if i == -1:  # object is too far from all other objects of the same type
                     symbol = self.get_new_symbol()
                     self.add_new_landmark(symbol, pose, noise, object_name)
                 else:
                     ################ with motion model:
+                    # landmark = self.detected_landmarks[object_name][i]
+                    # landmark.symbol += 1
+                    # landmark.number_of_detections += 1
+                    # landmark.last_seen_frame = self.current_frame
+                    # self.graph.add(gtsam.BetweenFactorPose3(self.camera_key, landmark.symbol, pose, noise))
+                    # self.new_graph.add(gtsam.BetweenFactorPose3(self.camera_key, landmark.symbol, pose, noise))
+                    # self.all_factors_count += 1
+                    # odometry = gtsam.Pose3(np.eye(4))
+                    # # time_elapsed = 0.000000000001
+                    # sigma = 0.000001
+                    # odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * sigma * (self.current_frame - landmark.last_seen_frame))
+                    # self.graph.add(
+                    #     gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
+                    # self.new_graph.add(
+                    #     gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
+                    # self.all_factors_count += 1
+                    #
+                    # estimate = self.current_estimate.atPose3(landmark.symbol - 1)
+                    # self.initial_estimate.insert(landmark.symbol, estimate)
+                    ################ with motion model, full odometry:
                     landmark = self.detected_landmarks[object_name][i]
-                    landmark.symbol += 1
                     landmark.number_of_detections += 1
                     landmark.last_seen_frame = self.current_frame
                     self.graph.add(gtsam.BetweenFactorPose3(self.camera_key, landmark.symbol, pose, noise))
                     self.new_graph.add(gtsam.BetweenFactorPose3(self.camera_key, landmark.symbol, pose, noise))
-                    estimate = T_bc.compose(pose)
-                    self.initial_estimate.insert(landmark.symbol, estimate)
-
-                    odometry = gtsam.Pose3(np.eye(4))
-                    # time_elapsed = 0.000000000001
-                    time_elapsed = 0.000001
-                    odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6)*time_elapsed)
-                    self.graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
-                    self.new_graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
+                    self.all_factors_count += 1
                     ################## without motion model:
                     # symbol = self.detected_landmarks[object_name][i]
                     # self.new_graph.add(gtsam.BetweenFactorPose3(self.camera_key, symbol, pose, noise))
                     # self.graph.add(gtsam.BetweenFactorPose3(self.camera_key, symbol, pose, noise))
+                    # self.all_factors_count += 1
 
     def update_estimate(self):  # call after each change of camera pose
         # self.isam.update(self.graph, self.initial_estimate)
         self.isam.update(self.new_graph, self.initial_estimate)
         self.current_estimate = self.isam.calculateEstimate()
+        marginals_full = gtsam.Marginals(self.graph, self.current_estimate)
+        marginals_new = gtsam.Marginals(self.new_graph, self.current_estimate)
+        for obj_name in self.detected_landmarks:
+            for landmark in self.detected_landmarks[obj_name]:
+                # cov1 = self.isam.marginalCovariance(landmark.symbol)
+                cov2 = marginals_full.marginalCovariance(landmark.symbol)
+                cov3 = marginals_new.marginalCovariance(landmark.symbol)
+                # suma = np.sum((cov1 - cov2))
+                pass
+        # marginals_new = gtsam.Marginals(self.new_graph, self.current_estimate)
+        # gtsam.Marginals.
         # self.marginals = gtsam.Marginals(self.graph, self.current_estimate)
         self.initial_estimate.clear()
         self.new_graph = gtsam.NonlinearFactorGraph()
-        # marginals = gtsam.Marginals(self.graph, self.current_estimate)
+
 
 
     def get_all_T_bo(self):  # TODO: make compatible with duplicates
@@ -298,6 +339,7 @@ class SAM():
         else:
             plt.pause(0.1)
         return fig
+
     def draw_3d_estimate_mm(self):
         """Display the current estimate of a factor graph"""
         # Compute the marginals for all states in the graph.
