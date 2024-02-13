@@ -37,7 +37,6 @@ class SAM():
         self.parameters.setRelinearizeThreshold(0.1)
         self.parameters.relinearizeSkip = 1
         self.isam = gtsam.ISAM2(self.parameters)
-
         # self.landmark_symbols: Dict[str:Symbol] = {}  # {object_name: symbol}
         self.detected_landmarks: Dict[str:[Symbol]] = {}
         self.landmark_count = 0
@@ -180,6 +179,7 @@ class SAM():
                 odometry = gtsam.Pose3(np.eye(4))
                 # time_elapsed = 0.000000000001
                 time_elapsed = 0.000001
+                time_elapsed = 0.001
                 odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
                 self.graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
                 self.new_graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
@@ -255,15 +255,15 @@ class SAM():
         # self.isam.update(self.graph, self.initial_estimate)
         self.isam.update(self.new_graph, self.initial_estimate)
         self.current_estimate = self.isam.calculateEstimate()
-        marginals_full = gtsam.Marginals(self.graph, self.current_estimate)
-        marginals_new = gtsam.Marginals(self.new_graph, self.current_estimate)
-        for obj_name in self.detected_landmarks:
-            for landmark in self.detected_landmarks[obj_name]:
-                # cov1 = self.isam.marginalCovariance(landmark.symbol)
-                cov2 = marginals_full.marginalCovariance(landmark.symbol)
-                cov3 = marginals_new.marginalCovariance(landmark.symbol)
-                # suma = np.sum((cov1 - cov2))
-                pass
+        # marginals_full = gtsam.Marginals(self.graph, self.current_estimate)
+        # marginals_new = gtsam.Marginals(self.new_graph, self.current_estimate)
+        # for obj_name in self.detected_landmarks:
+        #     for landmark in self.detected_landmarks[obj_name]:
+        #         # cov1 = self.isam.marginalCovariance(landmark.symbol)
+        #         cov2 = marginals_full.marginalCovariance(landmark.symbol)
+        #         cov3 = marginals_new.marginalCovariance(landmark.symbol)
+        #         # suma = np.sum((cov1 - cov2))
+        #         pass
         # marginals_new = gtsam.Marginals(self.new_graph, self.current_estimate)
         # gtsam.Marginals.
         # self.marginals = gtsam.Marginals(self.graph, self.current_estimate)
@@ -293,12 +293,13 @@ class SAM():
 
     def export_current_state(self):
         ret = {}
-        marginals = gtsam.Marginals(self.graph, self.current_estimate)
+        # marginals = gtsam.Marginals(self.graph, self.current_estimate)
         for object_name in self.detected_landmarks:
             object_entries = []
             for landmark in self.detected_landmarks[object_name]:
                 entry = {}
-                cov = marginals.marginalCovariance(landmark.symbol)
+                # cov = marginals.marginalCovariance(landmark.symbol)
+                cov = self.isam.marginalCovariance(landmark.symbol)
                 T:gtsam.Pose3 = self.current_estimate.atPose3(landmark.symbol)
                 entry['T'] = T.matrix()
                 entry['Q'] = cov

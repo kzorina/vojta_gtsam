@@ -44,7 +44,10 @@ def f_pin(T_wc:pin.SE3, T_cb:pin.SE3):
     return T_wc * T_cb
 
 def f_gtsam(T_wc:gtsam.Pose3, T_cb:gtsam.Pose3):
-    return T_wc.transformPoseFrom(T_cb)
+    Ha = np.zeros((6, 6), dtype=np.float64, order='f')
+    Hb = np.zeros((6, 6), dtype=np.float64, order='f')
+    r = T_wc.transformPoseFrom(T_cb, Hself=Ha, HaTb = Hb)
+    return r
 
 # Compute estimated body pose in camera frame
 # T_wb = f(T_wc, T_cb)

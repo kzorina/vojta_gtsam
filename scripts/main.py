@@ -34,6 +34,38 @@ def plot_time_delays(time_delays, landmark_counts):
              fontsize=16, transform=plt.gcf().transFigure, bbox=bbox)
     plt.show()
 
+def plot_estimate_progress(estimate_progress):
+    figure, axis = plt.subplots(5, 2)
+    seen_objects = list(estimate_progress[-1].keys())
+    objects_to_plot = [(seen_objects[0], 0), (seen_objects[0], 1), (seen_objects[0], 2),
+                       (seen_objects[1], 0), (seen_objects[1], 1)]
+    for axis_id, (obj_name, i) in enumerate(objects_to_plot):
+        t_cov_sizes = np.full((len(estimate_progress)), np.nan)
+        R_cov_sizes = np.full((len(estimate_progress)), np.nan)
+        for frame, objects in enumerate(estimate_progress):
+            if obj_name in objects:
+                if len(objects[obj_name]) > i:
+                    Q = objects[obj_name][i]["Q"]
+                    t_cov_sizes[frame] = np.linalg.det(Q[3:6, 3:6])**0.5
+                    R_cov_sizes[frame] = np.linalg.det(Q[:3, :3])**0.5
+        axis[axis_id, 0].plot(np.arange(0, t_cov_sizes.shape[0]), t_cov_sizes, '-')
+        axis[axis_id, 1].plot(np.arange(0, R_cov_sizes.shape[0]), R_cov_sizes, '-')
+        axis[axis_id, 0].grid()
+        axis[axis_id, 1].grid()
+        axis[axis_id, 0].set_xlabel("frame")
+        axis[axis_id, 0].set_ylabel("sqrt_trans_cov_det")
+        axis[axis_id, 1].set_xlabel("frame")
+        axis[axis_id, 1].set_ylabel("sqrt_rot_cov_det")
+        axis[axis_id, 0].set_title(f"{obj_name}_{i}")
+        axis[axis_id, 1].set_title(f"{obj_name}_{i}")
+        axis[axis_id, 0].legend("Translation")
+        axis[axis_id, 1].legend("Rotation")
+        axis[axis_id, 0].set_xlim(-1, len(estimate_progress))
+        axis[axis_id, 1].set_xlim(-1, len(estimate_progress))
+
+    plt.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.05, hspace=0.7)
+    plt.show()
+
 def example_with_vizualization():
     base_path = Path(__file__).parent.parent / "datasets_aruco"
     dataset_path = base_path / "multiview"
@@ -125,7 +157,7 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
 
         time_each_frame[i] = time.time() - start_time
         landmarks_each_frame[i] = sam.all_factors_count
-        # estimate_progress.append(sam.export_current_state())
+        estimate_progress.append(sam.export_current_state())
         # fig = sam.draw_3d_estimate_mm()
         # fig.savefig(dataset_path/"gtsam_viz"/f'{i:04}.png')
         poses = sam.get_all_T_co()
@@ -134,7 +166,8 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
     # with open(dataset_path / 'estimate_progress.p', 'wb') as file:
     #     pickle.dump(estimate_progress, file)
         print(f"\r({(i + 1)}/{len(images)})", end='')
-    plot_time_delays(time_each_frame, landmarks_each_frame)
+    plot_estimate_progress(estimate_progress)
+    # plot_time_delays(time_each_frame, landmarks_each_frame)
     print("")
     with open(dataset_path / 'frames_refined_prediction.p', 'wb') as file:
         pickle.dump(refined, file)
