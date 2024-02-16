@@ -2,7 +2,8 @@ from pathlib import Path
 from Detection import Detection
 import os
 import cv2
-from SAM import SAM
+from SAM_incremental_fixed_lag_smoother import SAM
+# from SAM_isam2 import SAM
 import pickle
 from compare_gt_predictions2 import plot_split_results
 import time
@@ -144,30 +145,35 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
     refined = []
     estimate_progress = []
     images = sorted(os.listdir(dataset_path / "rgb"))
-    time_each_frame = np.zeros((len(images)))
-    landmarks_each_frame = np.zeros((len(images)))  # the ammount of landmarks recorded in the graph
-    for i, img_name in enumerate(images):
-        # img_path = dataset_path / "rgb" / img_name
-        start_time = time.time()
-        sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
-        sam.insert_odometry_measurements()
-        for key in frames_prediction[i]:
-            sam.insert_T_co_detections(frames_prediction[i][key], key)
-        sam.update_estimate()
+    repetitions = 4
+    time_each_frame = np.zeros((len(images)*repetitions))
+    landmarks_each_frame = np.zeros((len(images)*repetitions))  # the ammount of landmarks recorded in the graph
 
-        time_each_frame[i] = time.time() - start_time
-        landmarks_each_frame[i] = sam.all_factors_count
-        estimate_progress.append(sam.export_current_state())
-        # fig = sam.draw_3d_estimate_mm()
-        # fig.savefig(dataset_path/"gtsam_viz"/f'{i:04}.png')
-        poses = sam.get_all_T_co()
-        refined.append(poses)
+    for a in range(repetitions):
+        for i, img_name in enumerate(images):
+            idx = a*len(images) + i
+            # img_path = dataset_path / "rgb" / img_name
+            start_time = time.time()
+            # sam.insert_odometry_measurements()
+            sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
+            for key in frames_prediction[i]:
+                sam.insert_T_co_detections(frames_prediction[i][key], key)
+            sam.update_fls()
+            sam.update_current_estimate()
+
+            time_each_frame[idx] = time.time() - start_time
+            landmarks_each_frame[idx] = sam.all_factors_count
+            # estimate_progress.append(sam.export_current_state())
+            # fig = sam.draw_3d_estimate_mm()
+            # fig.savefig(dataset_path/"gtsam_viz"/f'{i:04}.png')
+            poses = sam.get_all_T_co()
+            refined.append(poses)
 
     # with open(dataset_path / 'estimate_progress.p', 'wb') as file:
     #     pickle.dump(estimate_progress, file)
-        print(f"\r({(i + 1)}/{len(images)})", end='')
-    plot_estimate_progress(estimate_progress)
-    # plot_time_delays(time_each_frame, landmarks_each_frame)
+            print(f"\r({(idx + 1)}/{len(images)*repetitions})", end='')
+    # plot_estimate_progress(estimate_progress)
+    plot_time_delays(time_each_frame, landmarks_each_frame)
     print("")
     with open(dataset_path / 'frames_refined_prediction.p', 'wb') as file:
         pickle.dump(refined, file)

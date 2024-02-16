@@ -87,6 +87,7 @@ class SAM_noise():
         noise = gtsam.noiseModel.Gaussian.Covariance(C_oo)
         return noise
 
+
     @staticmethod
     def get_object_in_camera_noise2(T_co: np.ndarray, T_wc:np.ndarray,  K: np.ndarray) -> gtsam.noiseModel:
         """

@@ -18,3 +18,14 @@ estimate_progress files structure:
 ]
 T_xx = np.array(), shape = (4, 4)
 Q_oo = np.array(), shape = (6, 6)
+
+
+```
+frames_prediction.p structure:
+
+[{Object_1': [T_co, T_co, T_co...], 'Object_2': [T_co, T_co, T_co...], ...}  
+.  
+.  
+.]  
+T_xx = np.array(), shape = (4, 4)
+```
