@@ -183,15 +183,18 @@ def rendering(predictions, renderer, K, resolution=(640, 480)):
     return renderings
 
 
-def save_prediction_img(output_path, img_name, rgb, rgb_render):
-    mask = ~(rgb_render.sum(axis=-1) == 0)
-    rgb_n_render = rgb.copy()
-    rgb_n_render[mask] = rgb_render[mask]
+def save_prediction_img(output_path, img_name, rgb, rgb_renders):
+    overlays = []
+    for rgb_render in rgb_renders:
+        mask = ~(rgb_render.sum(axis=-1) == 0)
+        rgb_n_render = rgb.copy()
+        rgb_n_render[mask] = rgb_render[mask]
 
-    rgb_overlay = np.zeros_like(rgb_render)
-    rgb_overlay[~mask] = rgb[~mask] * 0.4 + 255 * 0.6
-    rgb_overlay[mask] = rgb_render[mask] * 0.9 + 255 * 0.1
-    comparison_img = cv2.cvtColor(np.concatenate((rgb, rgb_overlay), axis=1), cv2.COLOR_BGR2RGB)
+        rgb_overlay = np.zeros_like(rgb_render)
+        rgb_overlay[~mask] = rgb[~mask] * 0.4 + 255 * 0.6
+        rgb_overlay[mask] = rgb_render[mask] * 0.9 + 255 * 0.1
+        overlays.append(rgb_overlay)
+    comparison_img = cv2.cvtColor(np.concatenate([rgb]+ overlays, axis=1), cv2.COLOR_BGR2RGB)
     cv2.imwrite(str(output_path/img_name), comparison_img)
 
 def predictions_to_dict(predictions):
@@ -285,10 +288,10 @@ def main():
     renderer = Panda3dSceneRenderer(object_dataset)
 
     dataset_name = DATASET_NAMES[0]
-    for dataset_name in DATASET_NAMES[0:]:
+    for dataset_name in DATASET_NAMES[0:1]:
         print(f"\n{dataset_name}:")
         dataset_path = DATASETS_PATH / "test" / dataset_name
-        output_dir = dataset_path / "output_gtsam_filter"
+        output_dir = dataset_path / "output_gtsam_sliding_window"
         __refresh_dir(output_dir)
         scene_camera = load_scene_camera(dataset_path / "scene_camera.json")
         # scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(YCBV_OBJECT_NAMES.values()))
@@ -314,8 +317,9 @@ def main():
             # renderings = rendering(artificial_prediction, renderer, K, rgb.shape[:2])
             # renderings = rendering(scene_gt[i], renderer, K, rgb.shape[:2])
             # renderings = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
-            renderings = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
-            save_prediction_img(output_dir, img_name, rgb, renderings.rgb)
+            renderings_gtsam = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
+            renderings_cosypose = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
+            save_prediction_img(output_dir, img_name, rgb, [renderings_gtsam.rgb, renderings_cosypose.rgb])
             print(f"\r({i+1}/{len(img_names)})", end='')
 
 

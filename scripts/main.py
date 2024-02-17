@@ -2,8 +2,9 @@ from pathlib import Path
 from Detection import Detection
 import os
 import cv2
-from SAM_incremental_fixed_lag_smoother import SAM
+# from SAM_incremental_fixed_lag_smoother import SAM
 # from SAM_isam2 import SAM
+from SAM_fifo import SAM
 import pickle
 from compare_gt_predictions2 import plot_split_results
 import time
@@ -11,7 +12,8 @@ import json
 import numpy as np
 from bop_tools import convert_frames_to_bop, export_bop
 import matplotlib.pyplot as plt
-
+import pinocchio as pin
+import gtsam
 
 def load_data(path: Path):
     with open(path, 'rb') as file:
@@ -145,21 +147,22 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
     refined = []
     estimate_progress = []
     images = sorted(os.listdir(dataset_path / "rgb"))
-    repetitions = 4
+    repetitions = 1
     time_each_frame = np.zeros((len(images)*repetitions))
     landmarks_each_frame = np.zeros((len(images)*repetitions))  # the ammount of landmarks recorded in the graph
 
     for a in range(repetitions):
         for i, img_name in enumerate(images):
+
             idx = a*len(images) + i
             # img_path = dataset_path / "rgb" / img_name
             start_time = time.time()
-            # sam.insert_odometry_measurements()
+            sam.insert_odometry_measurements()
             sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
             for key in frames_prediction[i]:
                 sam.insert_T_co_detections(frames_prediction[i][key], key)
             sam.update_fls()
-            sam.update_current_estimate()
+            # sam.update_current_estimate()
 
             time_each_frame[idx] = time.time() - start_time
             landmarks_each_frame[idx] = sam.all_factors_count
@@ -208,8 +211,9 @@ if __name__ == "__main__":
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # datasets = [0]
     annotate_dataset(DATASETS_PATH, datasets)
-    merge_inferences(DATASETS_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_filter_2.csv', dataset_name)
+    merge_inferences(DATASETS_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_name)
     # merge_inferences(DATASETS_PATH, datasets, "frames_prediction.p", 'cosypose_hopeVideo-test_masks.csv', dataset_name)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()
