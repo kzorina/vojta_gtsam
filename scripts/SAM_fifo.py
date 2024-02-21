@@ -38,7 +38,9 @@ class Landmark:
     def is_valid(self, current_frame, Q):
         R_det = np.linalg.det(Q[:3, :3]) ** 0.5
         t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
-        if t_det > 0.000005 or R_det > 0.000001:
+        # if t_det > 0.000001 or R_det > 0.00003:
+        if t_det > 0.000002 or R_det > 0.00002:
+        # if t_det > 0.00001 or R_det > 0.0001:
             return False
         return True
         # n = 2
@@ -174,7 +176,8 @@ class SAM():
                 Q_nn = noises[j]
                 T_on = T_bo_s[i].transformPoseTo(T_bc.transformPoseFrom(gtsam.Pose3(T_cn_s[j])))
                 D[i, j] = mahalanobis_distance(gtsam.Pose3.Logmap(T_on.inverse()), Q_nn.covariance())
-        # if object_name == 'Cookies' and self.current_frame > 56:
+        # if object_name == 'Raisins' and self.current_frame > 5:
+        #     print("")
         #     T_co1 = T_bc.inverse().compose(T_bo_s[0]).matrix()
         #     print('')
         return D
@@ -187,7 +190,7 @@ class SAM():
         for i in range(D.shape[1]):
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
-            if minimum < 50:
+            if minimum < 20:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
@@ -208,8 +211,8 @@ class SAM():
                 landmark.symbol += 1
                 odometry = gtsam.Pose3(np.eye(4))
                 # time_elapsed = 0.000000000001
+                # time_elapsed = 0.000001
                 time_elapsed = 0.000001
-                time_elapsed = 0.0000001
                 odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
                 self.current_graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
                 self.symbol_queue.push_factor([landmark.symbol - 1, landmark.symbol])
@@ -219,7 +222,7 @@ class SAM():
                 self.all_factors_count += 1
 
 
-    def insert_T_co_detections(self, T_cn_s: [np.ndarray], object_name: str):
+    def insert_T_co_detections(self, T_cn_s: [np.ndarray], object_name: str, px_counts = None):
         """
         isert one or more insances of the same object type. Determines the best assignment to previous detections.
         :param T_cos: [T_co, T_co, T_co...] unordered list of objects of the same type
@@ -228,7 +231,11 @@ class SAM():
         T_bc = gtsam.Pose3(self.last_T_bc)
         noises = []
         for j in range(len(T_cn_s)):
-            noises.append(SAM_noise.get_object_in_camera_noise(T_cn_s[j], T_bc.matrix(), f=0.03455))
+            # noises.append(SAM_noise.get_object_in_camera_noise(T_cn_s[j], T_bc.matrix(), f=0.03455))
+            px_count = px_counts[j]
+            # old = SAM_noise.get_object_in_camera_noise_old(T_cn_s[j], T_bc.matrix(), f=0.03455).covariance()
+            # new = SAM_noise.get_object_in_camera_noise_px(T_cn_s[j], px_count).covariance()
+            noises.append(SAM_noise.get_object_in_camera_noise_px(T_cn_s[j], px_count))
             # noises.append(SAM_noise.get_object_in_camera_noise_old(T_cn_s[j], T_bc.matrix(), f=0.03455))
         if object_name not in self.detected_landmarks:  # no previous instance of this object.
             self.detected_landmarks[object_name] = []
@@ -255,10 +262,6 @@ class SAM():
                     self.current_graph.add(gtsam.BetweenFactorPose3(self.camera_landmark.symbol, landmark.symbol, pose, noise))
                     self.symbol_queue.push_factor([self.camera_landmark.symbol, landmark.symbol])
                     self.all_factors_count += 1
-
-
-
-
 
     def update_fls(self):  # call after each change of camera pose
         optimizer = gtsam.LevenbergMarquardtOptimizer(self.current_graph, self.initial_estimate, self.params)
@@ -330,7 +333,7 @@ class SAM():
     def draw_3d_estimate_mm(self):
         """Display the current estimate of a factor graph"""
         # Compute the marginals for all states in the graph.
-        marginals = gtsam.Marginals(self.graph, self.current_estimate)
+        marginals = gtsam.Marginals(self.current_graph, self.current_estimate)
         # Plot the newly updated iSAM2 inference.
         fig = plt.figure(0)
         if not fig.axes:
@@ -343,7 +346,7 @@ class SAM():
                 if landmark.is_valid(self.current_frame, self.marginals.marginalCovariance(landmark.symbol)):
                     current_pose = self.current_estimate.atPose3(landmark.symbol)
                     name = f'{object_name[:2]}_{idx}'
-                    cov = marginals.marginalCovariance(landmark.symbol)
+                    cov = 500*marginals.marginalCovariance(landmark.symbol)
                     gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
                     axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
 

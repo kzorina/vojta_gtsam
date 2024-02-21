@@ -62,7 +62,7 @@ def load_scene_gt(path, label_list = None):
         parsed_data.append(entry)
     return parsed_data
 
-def count_frame_difference(frame_gt, frame, false_negative):  # if false_positive=1 => counts number of false positives, if false_positive=-1 => counts false negatives
+def count_frame_difference_old(frame_gt, frame, false_negative):  # if false_positive=1 => counts number of false positives, if false_positive=-1 => counts false negatives
     count = 0
     for obj_name in set(frame_gt.keys())|set(frame.keys()):
         if (obj_name in frame_gt) and (obj_name in frame):
@@ -72,6 +72,58 @@ def count_frame_difference(frame_gt, frame, false_negative):  # if false_positiv
         elif (obj_name in frame):
             count += max(0, -false_negative*len(frame[obj_name]))
     return count
+
+def count_frame_difference(frame_gt, frame_est, false_negative):  # if false_negative=1 => counts number of false negatives, if false_negative=-1 => counts false positives
+    count = 0
+    for obj_name in set(frame_gt.keys())|set(frame_est.keys()):
+        if (obj_name in frame_gt) and (obj_name in frame_est):
+            # count += max(0, (len(frame_gt[obj_name]) - len(frame[obj_name]))*false_negative)
+            D = calculate_D(frame_gt[obj_name], frame_est[obj_name])
+            if D.shape[0] == 0 or D.shape[1] == 0:
+                continue
+            D_bin = np.zeros_like(D)
+            D_bin[D < 0.3] = 1
+            if false_negative == 1:
+                D_bin = D_bin.T
+            a = D_bin.shape[1] - np.linalg.matrix_rank(D_bin)
+            # if (D.shape[0] > 1 or D.shape[1] > 1) and false_negative == 1:
+            #     print("")
+            count += a
+        elif (obj_name in frame_gt):
+            count += max(0, false_negative*len(frame_gt[obj_name]))
+        elif (obj_name in frame_est):
+            count += max(0, -false_negative * len(frame_est[obj_name]))
+    return count
+
+def calculate_D(gt_T_co_s, est_T_co_s):
+    """
+    Calculates a 2d matrix containing distances between each new and old object estimates
+    """
+    D = np.ndarray((len(gt_T_co_s), len(est_T_co_s)))
+    for i in range(len(gt_T_co_s)):
+        for j in range(len(est_T_co_s)):
+            T_oo:pin.SE3 = pin.SE3(gt_T_co_s[i]).inverse()*pin.SE3(est_T_co_s[j])
+            w = pin.log3(T_oo.rotation)
+            t = T_oo.translation
+            D[i, j] = np.linalg.norm(w) + np.linalg.norm(t)
+    return D
+
+def determine_assignment(frames_gt, frames_prediction, object_name):
+    assignment = []
+    for frame in range(len(frames_gt)):
+        if object_name not in frames_prediction[frame]:
+            assignment.append(None)
+            continue
+        num_of_objects = min(len(frames_gt[frame][object_name]), len(frames_prediction[frame][object_name]))
+        D = calculate_D(frames_gt[frame][object_name], frames_prediction[frame][object_name][:num_of_objects])
+        entry = []
+        for i in range(D.shape[1]):
+            argmin = np.argmin(D[:,i])
+            # minimum = D[:,i][argmin]
+            D[argmin, :] = np.full((D.shape[1]), np.inf)
+            entry.append(argmin)
+        assignment.append(entry)
+    return assignment
 
 def get_differences(frames_gt, frames, false_negative):
     diff = np.zeros((len(frames_gt)))
@@ -91,12 +143,13 @@ def plot_differences(differences, axis, title, legend = ("cosypose", "gtsam")):
     axis.grid()
 
 def main():
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
-    DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
+    DATASET_PATH = DATASETS_PATH / "SynthStatic"
+    SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
     num_of_plots = 3
     figure, axis = plt.subplots(num_of_plots, 2)
-    for i, dataset_name in enumerate(DATASET_NAMES[:num_of_plots]):
-        dataset_path = DATASETS_PATH / "test" / dataset_name
+    for i, dataset_name in enumerate(SCENES_NAMES[:num_of_plots]):
+        dataset_path = DATASET_PATH / "test" / dataset_name
         scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(HOPE_OBJECT_NAMES.values()))
         frames_prediction = load_data(dataset_path / "frames_prediction.p")
         frames_refined_prediction = load_data(dataset_path / "frames_refined_prediction.p")

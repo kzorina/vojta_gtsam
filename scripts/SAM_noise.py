@@ -5,6 +5,7 @@ from gtsam.symbol_shorthand import B, V, X
 from typing import List, Dict
 from cov_model import compute_covariance
 import numpy as np
+from cov import measurement_covariance
 class SAM_noise():
 
 
@@ -85,6 +86,15 @@ class SAM_noise():
         T_oc = gtsam.Pose3(T_co).inverse().matrix()
         C_oo = SAM_noise.transform_cov(T_oc, C_co)
         # cov[3:6, 3:6] = T_bc[:3, :3] @ cov[3:6, 3:6] @ T_bc[:3, :3].T  # transform covariance matrix from camera frame to object frame
+        noise = gtsam.noiseModel.Gaussian.Covariance(C_oo)
+        return noise
+
+    @staticmethod
+    def get_object_in_camera_noise_px(T_co: np.ndarray, px_count) -> gtsam.noiseModel:
+        """
+        :param f: camera focal length in meters
+        """
+        C_oo = measurement_covariance(T_co, px_count)
         noise = gtsam.noiseModel.Gaussian.Covariance(C_oo)
         return noise
 

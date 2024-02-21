@@ -194,27 +194,34 @@ def rendering(predictions, dataset_dir, renderer, K=None):
     return renderings
 
 
-def save_prediction_img(output_path, img_name, rgb, rgb_render):
+def save_prediction_img(output_path, img_name, rgb, rgb_render, bboxes):
     mask = ~(rgb_render.sum(axis=-1) == 0)
     rgb_n_render = rgb.copy()
     rgb_n_render[mask] = rgb_render[mask]
-
     rgb_overlay = np.zeros_like(rgb_render)
     rgb_overlay[~mask] = rgb[~mask] * 0.4 + 255 * 0.6
     rgb_overlay[mask] = rgb_render[mask] * 0.9 + 255 * 0.1
+    # fixed_bboxes =
+    for bbox in bboxes:
+        cv2.rectangle(rgb_overlay, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 2)
+        # cv2.rectangle(rgb_overlay, (100, 100), (200, 200), (0, 255, 0), 2)
     comparison_img = cv2.cvtColor(np.concatenate((rgb, rgb_overlay), axis=1), cv2.COLOR_BGR2RGB)
     cv2.imwrite(str(output_path/img_name), comparison_img)
 
-def predictions_to_dict(predictions):
+def predictions_to_dict(predictions, px_counts):
     entry = {}
+    entry_px_count = {}
     poses_tensor: torch.Tensor = predictions.tensors["poses"]
     for idx, label in enumerate(predictions.infos["label"]):
         pose = poses_tensor[idx].numpy()
+        px_count = px_counts[idx]
         obj_name = OBJECT_NAMES[label.split("-")[1]]
         if obj_name not in entry:
             entry[obj_name] = []
+            entry_px_count[obj_name] = []
         entry[obj_name].append(pose)
-    return entry
+        entry_px_count[obj_name].append(px_count)
+    return entry, entry_px_count
 
 def save_preditions_data(output_path, all_predictions):
     with open(output_path, 'wb') as file:
@@ -257,7 +264,7 @@ def get_scene_camera(path):
     return parsed_data
 
 
-def run_inference(dataset_dir: Path, CosyPose) -> None:
+def run_inference(dataset_dir: Path, CosyPose, object_dataset) -> None:
     DATASET_NAME = int(dataset_dir.name)
 
     img_names = sorted(os.listdir(dataset_dir / "rgb"))
@@ -266,6 +273,7 @@ def run_inference(dataset_dir: Path, CosyPose) -> None:
 
     start_time = time.time()
     all_predictions = []
+    all_px_counts = []
     for i in range(len(img_names)):
         K = scene_camera[i]["cam_K"]
 
@@ -274,11 +282,26 @@ def run_inference(dataset_dir: Path, CosyPose) -> None:
         img_path = dataset_dir / "rgb" / img_name
         rgb, depth, camera_data = load_observation(dataset_dir, img_path, K=K)
         observation = data_to_observation(rgb, depth, camera_data)
-        predictions = CosyPose.inference(observation)
+
+
+        # detections = CosyPose.detector.get_detections(observation, output_masks=True)
+        # final_preds, all_preds = CosyPose.pose_predictor.run_inference_pipeline(observation, detections)
+        # predictions = final_preds.cpu()
+        predictions, extra_data = CosyPose.inference(observation, output_masks=True)
+        # cosypose is a CosyPoseWrapper object
 
         # renderings = rendering(predictions, dataset_dir, renderer, K=K)
-        # save_prediction_img(dataset_dir / "output", img_name, rgb, renderings.rgb)
-        all_predictions.append(predictions_to_dict(predictions))
+        # save_prediction_img(dataset_dir / "output_bbox", img_name, rgb, renderings.rgb, predictions.tensors['boxes_crop'].data.numpy())
+
+        # masks = extra_data['masks'].sum(0).cpu().numpy().astype(np.uint8)*20
+        # masks_rgb = cv2.cvtColor(masks, cv2.COLOR_GRAY2RGB)
+        # save_prediction_img(dataset_dir / "output_bbox", img_name, rgb, masks_rgb, predictions.tensors['boxes_crop'].data.numpy())
+        if 'px_count' in extra_data:
+            poses, bboxes = predictions_to_dict(predictions, extra_data['px_count'])
+        else:
+            poses, bboxes = predictions_to_dict(predictions, np.array([]))
+        all_predictions.append(poses)
+        all_px_counts.append(bboxes)
         del observation
         # del predictions
         # # torch.cuda.empty_cache()
@@ -291,6 +314,7 @@ def run_inference(dataset_dir: Path, CosyPose) -> None:
 
     print(f"\nruntime: {(time.time() - start_time):.2f}s for {len(img_names)} images")
     save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
+    save_preditions_data(dataset_dir/"frames_px_counts.p", all_px_counts)
     # export_bop(convert_frames_to_bop({DATASET_NAME: all_predictions}), dataset_dir / 'frames_prediction.csv')
 
 
@@ -299,12 +323,14 @@ def main():
     #  export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:32
     # torch.cuda.empty_cache()
     set_logging_level("info")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hope_video")
+    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
+    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthStatic")
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthStatic")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     MESHES_PATH = DATASETS_PATH/"meshes"
 
     # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]  # ycbv
-    DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]  # hope
+    DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]  # hope, synth
     object_dataset = make_object_dataset(MESHES_PATH)
     # CosyPose = CosyPoseWrapper(dataset_name="ycbv", n_workers=8)
     CosyPose = CosyPoseWrapper(dataset_name="hope", n_workers=8)
@@ -313,11 +339,11 @@ def main():
 
     # dataset_name = "dynamic1"
     # dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
-    for DATASET_NAME in DATASET_NAMES[0:]:
+    for DATASET_NAME in DATASET_NAMES[2:]:
         print(f"{DATASETS_PATH/DATASET_NAME}:")
         DATASET_PATH = DATASETS_PATH / "test" / DATASET_NAME
         __refresh_dir(DATASET_PATH / "output")
-        run_inference(DATASET_PATH, CosyPose)
+        run_inference(DATASET_PATH, CosyPose, object_dataset)
 
 if __name__ == "__main__":
     main()

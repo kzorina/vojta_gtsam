@@ -278,20 +278,21 @@ def load_scene_gt(path, label_list = None):
 def main():
     set_logging_level("info")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
-    MESHES_PATH = DATASETS_PATH/"meshes"
-
-    # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]
-    DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
+    # DATASET_NAME = "hopeVideo"
+    DATASET_NAME = "SynthStatic"
+    # DATASET_NAME = "SynthDynamice"
+    DATASET_PATH = DATASETS_PATH/DATASET_NAME
+    MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
+    SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
 
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)
 
-    dataset_name = DATASET_NAMES[0]
-    for dataset_name in DATASET_NAMES[0:1]:
-        print(f"\n{dataset_name}:")
-        dataset_path = DATASETS_PATH / "test" / dataset_name
-        output_dir = dataset_path / "output_gtsam_sliding_window"
+    for scene_name in SCENES_NAMES[1:2]:
+        print(f"\n{scene_name}:")
+        dataset_path = DATASET_PATH / "test" / scene_name
+        output_dir = dataset_path / "output_fifo"
         __refresh_dir(output_dir)
         scene_camera = load_scene_camera(dataset_path / "scene_camera.json")
         # scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(YCBV_OBJECT_NAMES.values()))
@@ -319,7 +320,8 @@ def main():
             # renderings = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
             renderings_gtsam = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
             renderings_cosypose = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
-            save_prediction_img(output_dir, img_name, rgb, [renderings_gtsam.rgb, renderings_cosypose.rgb])
+            # save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb])
+            save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb, renderings_gtsam.rgb])
             print(f"\r({i+1}/{len(img_names)})", end='')
 
 

@@ -21,14 +21,15 @@ def __export_json(data, path):
         json.dump(data, file, indent=1)
 def main():
     DATASETS_DIR = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
-    DATASET_NAME = "hopeVideo"
+    # DATASET_NAME = "hopeVideo"
+    DATASET_NAME = "SynthStatic"
     dataset_path = DATASETS_DIR / DATASET_NAME
     scene_names = sorted(os.listdir(DATASETS_DIR / DATASET_NAME / "test"))
     output = []
     for scene_name in scene_names:
         scene_path = dataset_path / "test" / scene_name
         scene_obj_ids = load_scene_obj_ids(scene_path / "scene_gt.json")
-        for im_id in range(0, len(scene_obj_ids), 20):
+        for im_id in range(0, len(scene_obj_ids), 15):
             for obj_id in scene_obj_ids[im_id]:
                 entry = {"im_id":im_id + 1, "inst_count":1, "obj_id":obj_id, "scene_id": int(scene_name)}
                 output.append(entry)

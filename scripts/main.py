@@ -144,6 +144,7 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
     sam = SAM()
     frames_gt = load_scene_camera(dataset_path / "scene_camera.json")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
+    px_counts = load_data(dataset_path / "frames_px_counts.p")
     refined = []
     estimate_progress = []
     images = sorted(os.listdir(dataset_path / "rgb"))
@@ -160,7 +161,7 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
             sam.insert_odometry_measurements()
             sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
             for key in frames_prediction[i]:
-                sam.insert_T_co_detections(frames_prediction[i][key], key)
+                sam.insert_T_co_detections(frames_prediction[i][key], key, px_counts[i][key])
             sam.update_fls()
             # sam.update_current_estimate()
 
@@ -176,7 +177,7 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
     #     pickle.dump(estimate_progress, file)
             print(f"\r({(idx + 1)}/{len(images)*repetitions})", end='')
     # plot_estimate_progress(estimate_progress)
-    plot_time_delays(time_each_frame, landmarks_each_frame)
+    # plot_time_delays(time_each_frame, landmarks_each_frame)
     print("")
     with open(dataset_path / 'frames_refined_prediction.p', 'wb') as file:
         pickle.dump(refined, file)
@@ -208,12 +209,16 @@ if __name__ == "__main__":
     # example_on_frames_prediction()
     # refine_ysbv_inference(Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv"), 50)
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
+    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
+    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
+    DATASET_NAME = "SynthStatic"
+    DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # datasets = [0]
-    annotate_dataset(DATASETS_PATH, datasets)
-    merge_inferences(DATASETS_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_name)
-    # merge_inferences(DATASETS_PATH, datasets, "frames_prediction.p", 'cosypose_hopeVideo-test_masks.csv', dataset_name)
+    annotate_dataset(DATASET_PATH, datasets)
+    merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_fifo_7_true_px.csv', dataset_name)
+    # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_name)
+    # merge_inferences(DATASET_PATH, datasets, "frames_prediction.p", f'cosypose_{DATASET_NAME}-test_7.csv', dataset_name)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()
