@@ -27,6 +27,7 @@ class Landmark:
         self.number_of_detections = 1
         self.last_seen_frame = frame
         self.chain_start = symbol
+        self.initial_symbol = symbol
 
     def cut_chain_tail(self, max_length = 999):
         cut = min(self.chain_start + max_length, self.symbol - Landmark.MIN_LENGH_BEFORE_CUT)
@@ -38,9 +39,9 @@ class Landmark:
     def is_valid(self, current_frame, Q):
         R_det = np.linalg.det(Q[:3, :3]) ** 0.5
         t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
-        # if t_det > 0.000001 or R_det > 0.00003:
-        if t_det > 0.000002 or R_det > 0.00002:
-        # if t_det > 0.00001 or R_det > 0.0001:
+
+        if t_det > 0.000004 or R_det > 0.00008:
+        # if t_det > 0.0000004 or R_det > 0.000008:
             return False
         return True
         # n = 2
@@ -51,7 +52,7 @@ class Landmark:
 class SymbolQueue:
 
     def __init__(self):
-        self.MAX_AGE = 30
+        self.MAX_AGE = 60
         self.timestamps = defaultdict(list)
         self.first_timestamp = 0
         self.current_timestamp = 0
@@ -175,7 +176,8 @@ class SAM():
             for j in range(len(T_cn_s)):
                 Q_nn = noises[j]
                 T_on = T_bo_s[i].transformPoseTo(T_bc.transformPoseFrom(gtsam.Pose3(T_cn_s[j])))
-                D[i, j] = mahalanobis_distance(gtsam.Pose3.Logmap(T_on.inverse()), Q_nn.covariance())
+                w = gtsam.Pose3.Logmap(T_on.inverse())
+                D[i, j] = mahalanobis_distance(w, Q_nn.covariance())
         # if object_name == 'Raisins' and self.current_frame > 5:
         #     print("")
         #     T_co1 = T_bc.inverse().compose(T_bo_s[0]).matrix()
@@ -212,7 +214,8 @@ class SAM():
                 odometry = gtsam.Pose3(np.eye(4))
                 # time_elapsed = 0.000000000001
                 # time_elapsed = 0.000001
-                time_elapsed = 0.000001
+                time_elapsed = 0.00000000001
+                # time_elapsed = 0.00001
                 odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
                 self.current_graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
                 self.symbol_queue.push_factor([landmark.symbol - 1, landmark.symbol])
@@ -303,15 +306,19 @@ class SAM():
             ret[idx] = pose.matrix()
         return ret
 
-    def get_all_T_co(self):  # TODO: make compatible with duplicates
+    def get_all_T_co(self, current_T_bc = None):  # TODO: make compatible with duplicates
         ret = {}
         for object_name in self.detected_landmarks:
             ret[object_name] = []
             for landmark in self.detected_landmarks[object_name]:
                 if landmark.is_valid(self.current_frame, self.marginals.marginalCovariance(landmark.symbol)):
+                    if current_T_bc is None:
+                        T_bc: gtsam.Pose3 = self.current_estimate.atPose3(self.camera_landmark.symbol)
+                    else:
+                        T_bc: gtsam.Pose3 = gtsam.Pose3(current_T_bc)
                     T_bo: gtsam.Pose3 = self.current_estimate.atPose3(landmark.symbol)
-                    T_bc: gtsam.Pose3 = self.current_estimate.atPose3(self.camera_landmark.symbol)
-                    ret[object_name].append((T_bc.inverse().compose(T_bo)).matrix())
+                    T_co = (T_bc.inverse().compose(T_bo)).matrix()
+                    ret[object_name].append({"T_co":T_co, "id":landmark.initial_symbol})
         return ret
 
     def export_current_state(self):

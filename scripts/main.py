@@ -158,11 +158,15 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
             idx = a*len(images) + i
             # img_path = dataset_path / "rgb" / img_name
             start_time = time.time()
-            sam.insert_odometry_measurements()
-            sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
-            for key in frames_prediction[i]:
-                sam.insert_T_co_detections(frames_prediction[i][key], key, px_counts[i][key])
-            sam.update_fls()
+            if i % 4 == 0:
+                sam.insert_odometry_measurements()
+                sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
+                for key in frames_prediction[i]:
+                    sam.insert_T_co_detections(frames_prediction[i][key], key, px_counts[i][key])
+                sam.update_fls()
+                poses = sam.get_all_T_co()
+            else:
+                poses = sam.get_all_T_co(current_T_bc=np.linalg.inv(frames_gt[i]['T_cw']))
             # sam.update_current_estimate()
 
             time_each_frame[idx] = time.time() - start_time
@@ -170,7 +174,7 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME):
             # estimate_progress.append(sam.export_current_state())
             # fig = sam.draw_3d_estimate_mm()
             # fig.savefig(dataset_path/"gtsam_viz"/f'{i:04}.png')
-            poses = sam.get_all_T_co()
+            # poses = sam.get_all_T_co()
             refined.append(poses)
 
     # with open(dataset_path / 'estimate_progress.p', 'wb') as file:
@@ -212,13 +216,16 @@ if __name__ == "__main__":
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     DATASET_NAME = "SynthStatic"
+    # DATASET_NAME = "hopeVideo"
+    # DATASET_NAME = "SynthDynamic"
+
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # datasets = [0]
     annotate_dataset(DATASET_PATH, datasets)
-    merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_fifo_7_true_px.csv', dataset_name)
+    merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_fifo.csv', dataset_name)
     # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_name)
-    # merge_inferences(DATASET_PATH, datasets, "frames_prediction.p", f'cosypose_{DATASET_NAME}-test_7.csv', dataset_name)
+    # merge_inferences(DATASET_PATH, datasets, "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_name)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

@@ -62,7 +62,7 @@ def load_data(path: Path):
         data = pickle.load(file)
     return data
 
-def convert_frames_to_bop(frames: dict[[dict]], dataset_name="ycbv") -> [dict]:
+def convert_frames_to_bop(frames: dict[[dict]], dataset_name="ycbv", translate_obj_ids=True) -> [dict]:
     """
     :param frames: {"[scene_id]": [{"object_name": [T_co, T_co, T_co...]}]}
     :returns [{"scene_id":[scene_id],
@@ -78,12 +78,20 @@ def convert_frames_to_bop(frames: dict[[dict]], dataset_name="ycbv") -> [dict]:
     for scene_id in frames:
         for im_id in range(len(frames[scene_id])):
             for obj_id in frames[scene_id][im_id]:
-                for T_co in frames[scene_id][im_id][obj_id]:
+                for object in frames[scene_id][im_id][obj_id]:
+                    if isinstance(object, dict):
+                        T_co = object["T_co"]
+                    else:
+                        T_co = object
                     R = " ".join(list(map(str, T_co[:3, :3].flatten().tolist())))
                     t = " ".join(list(map(str, (T_co[:3, 3]*1000).flatten().tolist())))
                     time = -1
                     score = 1
-                    entry = {"scene_id":scene_id, "im_id":im_id + 1, "obj_id":OBJECT_IDS[dataset_name][obj_id], "score":score, "R":R, "t":t, "time":time}
+                    if translate_obj_ids:
+                        final_obj_id = OBJECT_IDS[dataset_name][obj_id]
+                    else:
+                        final_obj_id = obj_id
+                    entry = {"scene_id":scene_id, "im_id":im_id + 1, "obj_id":final_obj_id, "score":score, "R":R, "t":t, "time":time}
                     output.append(entry)
     return output
 

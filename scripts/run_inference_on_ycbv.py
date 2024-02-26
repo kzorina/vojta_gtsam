@@ -324,8 +324,8 @@ def main():
     # torch.cuda.empty_cache()
     set_logging_level("info")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
-    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthStatic")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthStatic")
+    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthDynamic")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     MESHES_PATH = DATASETS_PATH/"meshes"
 
@@ -339,7 +339,7 @@ def main():
 
     # dataset_name = "dynamic1"
     # dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
-    for DATASET_NAME in DATASET_NAMES[2:]:
+    for DATASET_NAME in DATASET_NAMES[0:]:
         print(f"{DATASETS_PATH/DATASET_NAME}:")
         DATASET_PATH = DATASETS_PATH / "test" / DATASET_NAME
         __refresh_dir(DATASET_PATH / "output")

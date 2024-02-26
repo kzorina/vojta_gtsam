@@ -281,7 +281,7 @@ def main():
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "hopeVideo"
     DATASET_NAME = "SynthStatic"
-    # DATASET_NAME = "SynthDynamice"
+    # DATASET_NAME = "SynthDynamic"
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
@@ -289,7 +289,7 @@ def main():
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)
 
-    for scene_name in SCENES_NAMES[1:2]:
+    for scene_name in SCENES_NAMES[0:1]:
         print(f"\n{scene_name}:")
         dataset_path = DATASET_PATH / "test" / scene_name
         output_dir = dataset_path / "output_fifo"
