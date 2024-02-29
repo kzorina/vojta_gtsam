@@ -10,6 +10,8 @@ def load_scene_obj_ids(scene_path):
     with open(scene_path/"scene_gt_info.json") as json_file:
         gt_info:dict = json.load(json_file)
     parsed_data = []
+    rejected_count = 0
+    targets_count = 0
     for i in range(len(data)):
         entry = defaultdict(lambda: 0)
         frame = i+1
@@ -18,9 +20,12 @@ def load_scene_obj_ids(scene_path):
             obj_visib_fract = gt_info[str(frame)][idx]["visib_fract"]
             if obj_visib_fract > 0.05:
                 entry[obj_id] = entry[obj_id] + 1
+                targets_count += 1
             else:
-                print("")
+                rejected_count += 1
+                print(f"rejected: frame:{frame}, object:{obj_id}, visib_fract:{100*obj_visib_fract:.2f}%")
         parsed_data.append(entry)
+    print(f"generated: {targets_count} targets, rejected: {rejected_count} targets.")
     return parsed_data
 
 def __export_json(data, path):

@@ -123,54 +123,6 @@ def determine_assignment(frames_gt, frames_prediction, object_name):
         assignment.append(entry)
     return assignment
 
-def plot_differences(differences, axis, title, legend = ("cosypose", "gtsam")):
-    colors =("tab:red", "tab:green")
-    axis.set_title(title)
-    for i, error_vector in enumerate(differences):
-        axis.plot(np.arange(0, error_vector.shape[0]), error_vector, '-', color=colors[i])
-    axis.legend(legend)
-    axis.set_xlabel("frame")
-    axis.set_ylabel("")
-    axis.set_xlim(-1, len(differences[0]))
-    axis.grid()
-
-def plot_expected_old(scene_gt, scene_refined_prediction, axis, title=""):
-    obj_to_y_map = {}
-    obj_to_color_map = {}
-    # colors = np.random.rand(100, 3)
-    colors = list(mcolors.TABLEAU_COLORS.keys())
-    density = 20
-    for a, obj_name in enumerate(scene_gt[0]):
-        for idx, inst in enumerate(scene_gt[0][obj_name]):
-            obj_to_y_map[f"{obj_name}{idx}"] = len(obj_to_y_map)
-            if f"{obj_name}" not in obj_to_color_map:
-                obj_to_color_map[f"{obj_name}"] = colors[len(obj_to_color_map)]
-
-    y_gt = np.full((len(scene_gt)), None)
-    for frame in range(0, len(scene_gt), density):
-        for obj_name in scene_gt[frame]:
-            for idx, inst in enumerate(scene_gt[frame][obj_name]):
-                y = obj_to_y_map[f"{obj_name}{idx}"]
-                axis.plot([frame], [y], 'o', c=obj_to_color_map[f"{obj_name}"], markersize=12, markeredgewidth=2, mfc='none')
-                # y_gt[y, frame] = y
-    for frame in range(0, len(scene_gt), density):
-        for obj_name in scene_refined_prediction[frame]:
-            for idx, inst in enumerate(scene_refined_prediction[frame][obj_name]):
-                instance_name = f"{obj_name}{idx}"
-                if instance_name not in obj_to_y_map:
-                    obj_to_y_map[instance_name] = len(obj_to_y_map)
-                if f"{obj_name}" not in obj_to_color_map:
-                    obj_to_color_map[f"{obj_name}"] = colors[len(obj_to_color_map)]
-                y = obj_to_y_map[f"{obj_name}{idx}"]
-                axis.plot([frame], [y], 'o', c=obj_to_color_map[f"{obj_name}"], markersize=5, markeredgewidth=2)
-                # y_gt[y, frame] = y
-    axis.set_title(title)
-    # axis.legend(legend)
-    axis.set_xlabel("frame")
-    axis.set_ylabel("")
-    axis.set_xlim(-10, len(scene_gt))
-    axis.grid()
-
 def plot_expected(scene_gt, scene_refined_prediction, axis, title=""):
     obj_to_y_map = {}
     obj_to_color_map = {}
@@ -249,10 +201,6 @@ def plot_expected_cosypose(scene_gt, scene_refined_prediction, axis, title=""):
     axis.set_ylabel("")
     axis.set_xlim(-10, len(scene_gt))
     axis.grid()
-    bbox = dict(boxstyle='round', facecolor='grey', alpha=0.1)
-    for i, obj_name in enumerate(obj_to_color_map):
-        plt.text(0.83, 0.90 - i/15, f"o {obj_name}",
-                 fontsize=16, transform=plt.gcf().transFigure, bbox=bbox, color=obj_to_color_map[obj_name])
 
 def main():
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")

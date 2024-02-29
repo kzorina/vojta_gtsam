@@ -6,6 +6,8 @@ from typing import List, Dict, Set
 from SAM_noise import SAM_noise
 import graphviz
 import gtsam_unstable
+from functools import partial
+from custom_odom_factors import error_velocity_integration_local, error_velocity_integration_global
 
 import custom_gtsam_plot as gtsam_plot
 import matplotlib.pyplot as plt
@@ -14,10 +16,10 @@ from collections import defaultdict
 from SAM_distribution_distances import mahalanobis_distance, bhattacharyya_distance
 
 def dX(symbol):
-    return f"X({symbol - X(0)})"
+    return symbol - X(0)
 
 def dL(symbol):
-    return f"L({symbol - L(0)})"
+    return symbol - L(0)
 
 class Landmark:
     MIN_LENGH_BEFORE_CUT = 3
@@ -37,7 +39,7 @@ class Landmark:
         self.chain_start = cut
         return ret
 
-    def is_valid(self, current_frame, Q, t_validity_treshold, R_validity_treshold):
+    def is_valid(self, current_frame, Q, t_validity_treshold = 0.00001, R_validity_treshold = 0.0002):
         R_det = np.linalg.det(Q[:3, :3]) ** 0.5
         t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
 
@@ -54,7 +56,7 @@ class Landmark:
 class SymbolQueue:
 
     def __init__(self):
-        self.MAX_AGE = 60
+        self.MAX_AGE = 20
         self.timestamps = defaultdict(list)
         self.first_timestamp = 0
         self.current_timestamp = 0
@@ -104,6 +106,8 @@ class SAM():
         self.last_T_bc = None  # the last recorded T_bc transformation
 
         self.current_frame = 0
+        self.current_time_stamp = 0
+        self.previous_time_stamp = 0
 
         self.camera_landmark = Landmark(X(0), 0)
         self.camera_landmark.symbol -= 1
@@ -142,12 +146,14 @@ class SAM():
             count += vi[symbol].count(val)
         return count
 
-    def insert_T_bc_detection(self, T_bc: np.ndarray):
+    def insert_T_bc_detection(self, T_bc: np.ndarray, timestamp):
         """
         inserts camera pose estimate
         :param T_bc:
         """
         self.current_frame += 1
+        self.previous_time_stamp = self.current_time_stamp
+        self.current_time_stamp = timestamp
         # self.camera_key = X(self.current_frame)
         self.camera_landmark.symbol += 1
         pose = gtsam.Pose3(T_bc)
@@ -218,18 +224,38 @@ class SAM():
     def insert_odometry_measurements(self):
         for object_name in self.detected_landmarks:
             for landmark in self.detected_landmarks[object_name]:
-                landmark.symbol += 1
+
                 odometry = gtsam.Pose3(np.eye(4))
-                # time_elapsed = 0.000000000001
-                # time_elapsed = 0.000001
+                if landmark.initial_symbol < landmark.symbol:  # landmark is not new
+                    prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
+                    self.current_graph.add(gtsam.BetweenFactorVector(V(dL(landmark.symbol-1)), V(dL(landmark.symbol)), np.zeros(6), prior_cst_twist))
+                    self.symbol_queue.push_factor([V(dL(landmark.symbol-1)), V(dL(landmark.symbol))])
+                # elif landmark.initial_symbol == landmark.symbol:
+                #     self.current_estimate.insert
                 # time_elapsed = 0.00000000001
-                time_elapsed = 0.0001
-                odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
-                self.current_graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
-                self.symbol_queue.push_factor([landmark.symbol - 1, landmark.symbol])
+                landmark.symbol += 1
+                time_elapsed = (self.current_time_stamp - self.previous_time_stamp)
+                # time_elapsed = 0.0001
+                # odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
+                prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
+                error_func = partial(error_velocity_integration_global, time_elapsed)
+                twist_symbol = V(dL(landmark.symbol - 1))
+                fint = gtsam.CustomFactor(
+                    prior_int_twist,
+                    [landmark.symbol - 1, landmark.symbol, twist_symbol],
+                    error_func
+                )
+                self.current_graph.add(fint)
+                self.symbol_queue.push_factor([landmark.symbol - 1, landmark.symbol, twist_symbol])
                 T_oo_estimate = self.current_estimate.atPose3(landmark.symbol - 1)
                 self.initial_estimate.insert(landmark.symbol, T_oo_estimate)
+                self.initial_estimate.insert(twist_symbol, np.zeros(6))
 
+                ### dirty hack
+                bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
+                self.current_graph.add(gtsam.PriorFactorPose3(landmark.symbol, T_oo_estimate, bogus_noise))
+                self.symbol_queue.push_factor([landmark.symbol])
+                ### dirty hack
                 self.all_factors_count += 1
 
 
@@ -293,11 +319,17 @@ class SAM():
                 # t_det = np.linalg.det(Q[3:6, 3:6])**0.5
                 # if t_det > 0.0001 or (self.current_frame - landmark.last_seen_frame) >= self.symbol_queue.MAX_AGE:
                 if (self.current_frame - landmark.last_seen_frame) >= self.symbol_queue.MAX_AGE:
+                    twist_symbol = V(dL(symbol - 1))
+                    while twist_symbol in self.symbol_queue.factors:
+                        for factor in self.symbol_queue.factors[twist_symbol]:
+                            self.current_graph.remove(factor)
+                        del self.symbol_queue.factors[twist_symbol]
+                        self.initial_estimate.erase(twist_symbol)
+                        twist_symbol -= 1
                     while symbol in self.symbol_queue.factors:
                         for factor in self.symbol_queue.factors[symbol]:
                             self.current_graph.remove(factor)
                         del self.symbol_queue.factors[symbol]
-
                         self.initial_estimate.erase(symbol)
                         symbol -= 1
                     del self.detected_landmarks[obj_name][i]
@@ -314,7 +346,7 @@ class SAM():
             ret[idx] = pose.matrix()
         return ret
 
-    def get_all_T_co(self, current_T_bc = None):  # TODO: make compatible with duplicates
+    def get_all_T_co(self, timestamp=None, current_T_bc = None):  # TODO: make compatible with duplicates
         ret = {}
         for object_name in self.detected_landmarks:
             ret[object_name] = []
@@ -327,7 +359,13 @@ class SAM():
                 else:
                     T_bc: gtsam.Pose3 = gtsam.Pose3(current_T_bc)
                 T_bo: gtsam.Pose3 = self.current_estimate.atPose3(landmark.symbol)
-                T_co = (T_bc.inverse().compose(T_bo)).matrix()
+                if timestamp is not None and landmark.initial_symbol != landmark.symbol:
+                    dt = timestamp - self.current_time_stamp
+                    nu12 = self.current_estimate.atVector(V(dL(landmark.symbol - 1)))
+                    T_oo = gtsam.Pose3.Expmap(nu12*dt)
+                else:
+                    T_oo = gtsam.Pose3.Identity()
+                T_co = (T_bc.inverse().compose(T_oo).compose(T_bo)).matrix()
                 ret[object_name].append({"T_co":T_co, "id":landmark.initial_symbol,"Q":Q, "valid":landmark_valid}, )
         return ret
 

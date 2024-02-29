@@ -162,7 +162,13 @@ def rendering(predictions, renderer, K, resolution=(640, 480)):
     object_datas = []
     for label in predictions:
         if label != "Camera":
-            for T_co in predictions[label]:
+            for obj_inst in predictions[label]:
+                if isinstance(obj_inst, dict):
+                    if obj_inst["valid"] == False:
+                        continue
+                    T_co = obj_inst["T_co"]
+                else:
+                    T_co = obj_inst
                 object_datas.append(ObjectData(label=label, TWO=Transform(T_co)))
     camera_data, object_datas = convert_scene_observation_to_panda3d(camera_data, object_datas)
     light_datas = [
@@ -280,8 +286,8 @@ def main():
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "hopeVideo"
-    DATASET_NAME = "SynthStatic"
-    # DATASET_NAME = "SynthDynamic"
+    # DATASET_NAME = "SynthStatic"
+    DATASET_NAME = "SynthDynamic"
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]

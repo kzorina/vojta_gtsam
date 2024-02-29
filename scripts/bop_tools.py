@@ -80,6 +80,8 @@ def convert_frames_to_bop(frames: dict[[dict]], dataset_name="ycbv", translate_o
             for obj_id in frames[scene_id][im_id]:
                 for object in frames[scene_id][im_id][obj_id]:
                     if isinstance(object, dict):
+                        if not object["valid"]:
+                            continue
                         T_co = object["T_co"]
                     else:
                         T_co = object
