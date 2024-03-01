@@ -15,6 +15,36 @@ from bop_tools import convert_frames_to_bop, export_bop
 import matplotlib.pyplot as plt
 import pinocchio as pin
 import gtsam
+from collections import defaultdict
+
+HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
+    "obj_000002": "BBQSauce",
+    "obj_000003": "Butter",
+    "obj_000004": "Cherries",
+    "obj_000005": "ChocolatePudding",
+    "obj_000006": "Cookies",
+    "obj_000007": "Corn",
+    "obj_000008": "CreamCheese",
+    "obj_000009": "GranolaBars",
+    "obj_000010": "GreenBeans",
+    "obj_000011": "Ketchup",
+    "obj_000012": "MacaroniAndCheese",
+    "obj_000013": "Mayo",
+    "obj_000014": "Milk",
+    "obj_000015": "Mushrooms",
+    "obj_000016": "Mustard",
+    "obj_000017": "OrangeJuice",
+    "obj_000018": "Parmesan",
+    "obj_000019": "Peaches",
+    "obj_000020": "PeasAndCarrots",
+    "obj_000021": "Pineapple",
+    "obj_000022": "Popcorn",
+    "obj_000023": "Raisins",
+    "obj_000024": "SaladDressing",
+    "obj_000025": "Spaghetti",
+    "obj_000026": "TomatoSauce",
+    "obj_000027": "Tuna",
+    "obj_000028": "Yogurt"}
 
 def load_data(path: Path):
     with open(path, 'rb') as file:
@@ -91,6 +121,7 @@ def example_with_vizualization():
     objects_to_plot = ["2", "5", "7", "4", "3"]
     plot_split_results(objects_to_plot, frames_gt, [refined])
 
+
 def example_on_frames_prediction():
     base_path = Path(__file__).parent.parent / "datasets"
     # dataset_path = base_path / "crackers_new"
@@ -124,6 +155,24 @@ def example_on_frames_prediction():
 
     # plot_split_results(objects_to_plot, frames_gt, [refined])
 
+def load_scene_gt(path, label_list = None):
+    with open(path) as json_file:
+        data:dict = json.load(json_file)
+    parsed_data = []
+    for i in range(len(data)):
+        entry = defaultdict(lambda : [])
+        frame = i+1
+        for object in data[str(frame)]:
+            T_cm = np.zeros((4, 4))
+            T_cm[:3, :3] = np.array(object["cam_R_m2c"]).reshape((3, 3))
+            T_cm[:3, :3] = T_cm[:3, :3]
+            T_cm[:3, 3] = np.array(object["cam_t_m2c"]) / 1000
+            T_cm[3, 3] = 1
+            obj_id = object["obj_id"]
+            entry[label_list[obj_id-1]].append(T_cm)
+        parsed_data.append(entry)
+    return parsed_data
+
 def load_scene_camera(path):
     with open(path) as json_file:
         data:dict = json.load(json_file)
@@ -139,16 +188,19 @@ def load_scene_camera(path):
         parsed_data.append(entry)
     return parsed_data
 
-def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=20, tvt=0.00001, Rvt=0.0002):
+def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME,elt=0.0001, ort=20, tvt=0.00001, Rvt=0.0002):
     dataset_path = DATASETS_PATH/"test"/ f"{DATASET_NAME:06}"
 
     sam = SAM()
     sam.outlier_rejection_treshold = ort
     sam.t_validity_treshold = tvt
     sam.R_validity_treshold = Rvt
+    sam.elapsed_time = elt
 
-    frames_gt = load_scene_camera(dataset_path / "scene_camera.json")
+    frames_camera = load_scene_camera(dataset_path / "scene_camera.json")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
+    frames_gt = load_scene_gt(dataset_path / "scene_gt.json", list(HOPE_OBJECT_NAMES.values()))
+    # frames_prediction = frames_gt  ### TODO: for test purpose only, remove afterwards!!!!
     px_counts = load_data(dataset_path / "frames_px_counts.p")
     refined = []
     estimate_progress = []
@@ -163,16 +215,16 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=20, tvt=0.00001, Rvt=
             idx = a*len(images) + i
             # img_path = dataset_path / "rgb" / img_name
             start_time = time.time()
-            if i % 4 == 0:
+            if i % 1 == 0:
             # if i % 1 == 0:
                 sam.insert_odometry_measurements()
-                sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']))
+                sam.insert_T_bc_detection(np.linalg.inv(frames_camera[i]['T_cw']))
                 for key in frames_prediction[i]:
                     sam.insert_T_co_detections(frames_prediction[i][key], key, px_counts[i][key])
                 sam.update_fls()
                 poses = sam.get_all_T_co()
             else:
-                poses = sam.get_all_T_co(current_T_bc=np.linalg.inv(frames_gt[i]['T_cw']))
+                poses = sam.get_all_T_co(current_T_bc=np.linalg.inv(frames_camera[i]['T_cw']))
             # sam.update_current_estimate()
 
             time_each_frame[idx] = time.time() - start_time
@@ -193,12 +245,12 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=20, tvt=0.00001, Rvt=
         pickle.dump(refined, file)
     # plot_split_results(objects_to_plot, frames_gt, [refined])
 
-def annotate_dataset(DATASETS_PATH, datasets, ort, tvt, Rvt):
+def annotate_dataset(DATASETS_PATH, datasets,elt, ort, tvt, Rvt):
     results = {}
     for DATASET_NAME in datasets:
         print(f"dataset: {DATASET_NAME}")
         dataset_path = DATASETS_PATH / "test" / f"{DATASET_NAME:06}"
-        result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=ort, tvt=tvt, Rvt=Rvt)
+        result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME,elt, ort=ort, tvt=tvt, Rvt=Rvt)
         results[DATASET_NAME] = result
     # export_bop(convert_frames_to_bop(results), DATASETS_PATH / 'frames_refined_predictions.csv')
 
@@ -229,11 +281,12 @@ if __name__ == "__main__":
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # datasets = [0]
-    # for ort in [1, 5, 10, 20, 50]:
-    #     for tvt, Rvt in [(0.00001, 0.001), (0.000005, 0.001), (0.00001, 0.0002), (0.000005, 0.0002)]:
-    #         print(f"{ort}, {tvt:.6f}, {Rvt:.6f}")
-    #         annotate_dataset(DATASET_PATH, datasets, ort=ort, tvt=tvt, Rvt=Rvt)
-    #         merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_{ort}_{tvt:.6f}_{Rvt:.4f}_.csv', dataset_type)
+    for ort in [5]:
+        for tvt, Rvt in [(0.00000385, 0.0002)]:
+            for elt in [0.0001]:
+                print(f"{ort}, {tvt:.10f}, {Rvt:.10f}")
+                annotate_dataset(DATASET_PATH, datasets,elt=elt, ort=ort, tvt=tvt, Rvt=Rvt)
+                merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_mod1_{elt}_{ort}_{tvt:.10f}_{Rvt:.10f}_.csv', dataset_type)
     # annotate_dataset(DATASET_PATH, datasets)
     # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test.csv', dataset_type)
     # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_type)

@@ -18,7 +18,7 @@ def load_scene_obj_ids(scene_path):
         for idx in range(len(data[str(frame)])):
             obj_id = data[str(frame)][idx]["obj_id"]
             obj_visib_fract = gt_info[str(frame)][idx]["visib_fract"]
-            if obj_visib_fract > 0.05:
+            if obj_visib_fract > 0.001:
                 entry[obj_id] = entry[obj_id] + 1
                 targets_count += 1
             else:
@@ -42,7 +42,7 @@ def main():
     for scene_name in scene_names:
         scene_path = dataset_path / "test" / scene_name
         scene_obj_ids = load_scene_obj_ids(scene_path)
-        for im_id in range(0, len(scene_obj_ids), 30):
+        for im_id in range(0, len(scene_obj_ids), 1):
             for obj_id in scene_obj_ids[im_id]:
                 entry = {"im_id":im_id + 1, "inst_count":scene_obj_ids[im_id][obj_id], "obj_id":obj_id, "scene_id": int(scene_name)}
                 output.append(entry)

@@ -286,8 +286,8 @@ def main():
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "hopeVideo"
-    # DATASET_NAME = "SynthStatic"
-    DATASET_NAME = "SynthDynamic"
+    DATASET_NAME = "SynthStatic"
+    # DATASET_NAME = "SynthDynamic"
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
@@ -295,7 +295,7 @@ def main():
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)
 
-    for scene_name in SCENES_NAMES[0:1]:
+    for scene_name in SCENES_NAMES:#[0:1]:
         print(f"\n{scene_name}:")
         dataset_path = DATASET_PATH / "test" / scene_name
         output_dir = dataset_path / "output_fifo"
@@ -307,23 +307,10 @@ def main():
         frames_prediction = load_data(dataset_path / "frames_prediction.p")
         frames_refined_prediction = load_data(dataset_path / "frames_refined_prediction.p")
 
-        # T_co_0 = np.array(((0, 0, 1, 0),
-        #                      (0, 1, 0, 0),
-        #                      (1, 0, 0, 0.8),
-        #                      (0, 0, 0, 1)))
-        T_wc_0 = np.linalg.inv(scene_camera[0]["T_cw"])
-        # T_co_0 = scene_gt[0]
-        # T_wo = T_wc_0 @ T_co_0
         for i in range(0, len(img_names), 1):
             img_name = img_names[i]
             rgb = np.array(Image.open(dataset_path/"rgb"/img_name), dtype=np.uint8)
             K = scene_camera[i]["cam_K"]
-            # T_cw = scene_camera[i]["T_cw"]
-            # T_co = T_cw@T_wo
-            # artificial_prediction = {"03_sugar_box": [T_co]}
-            # renderings = rendering(artificial_prediction, renderer, K, rgb.shape[:2])
-            # renderings = rendering(scene_gt[i], renderer, K, rgb.shape[:2])
-            # renderings = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
             renderings_gtsam = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
             renderings_cosypose = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
             # save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb])

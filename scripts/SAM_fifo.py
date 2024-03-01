@@ -117,6 +117,7 @@ class SAM():
         self.outlier_rejection_treshold = 20
         self.t_validity_treshold = 0.00001
         self.R_validity_treshold = 0.0002
+        self.elapsed_time = 0.0001
 
     @staticmethod
     def parse_VariableIndex(variable_index):  # TODO: REMOVE THIS TEMPORARY FIX ASAP
@@ -223,7 +224,9 @@ class SAM():
                 # time_elapsed = 0.000000000001
                 # time_elapsed = 0.000001
                 # time_elapsed = 0.00000000001
-                time_elapsed = 0.0001
+                # time_elapsed = 0.0001  # i%4==0
+                # time_elapsed = 0.000025  # i%1==0
+                time_elapsed = self.elapsed_time
                 odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
                 self.current_graph.add(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
                 self.symbol_queue.push_factor([landmark.symbol - 1, landmark.symbol])
@@ -306,7 +309,7 @@ class SAM():
 
         # self.current_graph.resize(self.current_graph.size() - len(entries[0]))
 
-    def get_all_T_bo(self):  # TODO: make compatible with duplicates
+    def get_all_T_bo(self):
         ret = {}
         for idx in self.detected_landmarks:
             key = self.detected_landmarks[idx]
@@ -314,7 +317,7 @@ class SAM():
             ret[idx] = pose.matrix()
         return ret
 
-    def get_all_T_co(self, current_T_bc = None):  # TODO: make compatible with duplicates
+    def get_all_T_co(self, current_T_bc = None):
         ret = {}
         for object_name in self.detected_landmarks:
             ret[object_name] = []
