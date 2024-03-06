@@ -1,4 +1,5 @@
 import gtsam
+import numpy
 import numpy as np
 from gtsam import Symbol
 from gtsam.symbol_shorthand import B, V, X, L
@@ -182,6 +183,21 @@ class SAM():
         symbol = L((((self.landmark_count + 1) % max_idx) * max_idx))
         return symbol
 
+    def landmarkAtPose3(self, landmark):
+        T_bo_0 = self.current_estimate.atPose3(landmark.symbol - 1)
+        twist_symbol = V(dL(landmark.symbol - 1))
+        if self.current_estimate.exists(twist_symbol):
+            nu = self.current_estimate.atVector(V(dL(landmark.symbol - 1)))
+        else:
+            nu = numpy.zeros(6)
+        T_bb = gtsam.Pose3.Expmap(nu * self.get_dt())
+        T_bo = T_bb * T_bo_0
+        return T_bo
+
+    def get_dt(self):
+        return (self.current_time_stamp - self.previous_time_stamp)
+
+
     def calculate_D(self, T_cn_s:np.ndarray, noises, object_name:str):
         """
         Calculates a 2d matrix containing distances between each new and old object estimates
@@ -190,8 +206,8 @@ class SAM():
         T_bc: gtsam.Pose3 = gtsam.Pose3(self.last_T_bc)
         if object_name in self.detected_landmarks:
             for i, landmark in enumerate(self.detected_landmarks[object_name]):
-                T_bo_s.append(self.current_estimate.atPose3(landmark.symbol - 1))
-                # T_bo_s.append(self.current_estimate.atPose3(landmark.symbol))
+                T_bo = self.landmarkAtPose3(landmark)
+                T_bo_s.append(T_bo)
 
         D = np.ndarray((len(T_bo_s), len(T_cn_s)))
         for i in range(len(T_bo_s)):
@@ -232,18 +248,15 @@ class SAM():
         for object_name in self.detected_landmarks:
             for landmark in self.detected_landmarks[object_name]:
 
-                odometry = gtsam.Pose3(np.eye(4))
                 if landmark.initial_symbol < landmark.symbol:  # landmark is not new
-                    prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
+                    prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.01)
                     self.current_graph.add(gtsam.BetweenFactorVector(V(dL(landmark.symbol-1)), V(dL(landmark.symbol)), np.zeros(6), prior_cst_twist))
                     self.symbol_queue.push_factor([V(dL(landmark.symbol-1)), V(dL(landmark.symbol))])
 
-
                 landmark.symbol += 1
-                time_elapsed = (self.current_time_stamp - self.previous_time_stamp)
 
-                prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
-                error_func = partial(error_velocity_integration_global, time_elapsed)
+                prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.0001)
+                error_func = partial(error_velocity_integration_global, self.get_dt())
                 twist_symbol = V(dL(landmark.symbol - 1))
                 fint = gtsam.CustomFactor(
                     prior_int_twist,
@@ -260,12 +273,6 @@ class SAM():
                     bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
                     self.current_graph.add(gtsam.PriorFactorVector(twist_symbol, np.zeros(6), bogus_noise))
                     self.symbol_queue.push_factor([twist_symbol])
-                # ### less dirty hack
-                # ### dirty hack
-                # bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
-                # self.current_graph.add(gtsam.PriorFactorPose3(landmark.symbol, T_oo_estimate, bogus_noise))
-                # self.symbol_queue.push_factor([landmark.symbol])
-                # ### dirty hack
                 self.all_factors_count += 1
 
 
@@ -274,16 +281,10 @@ class SAM():
         isert one or more insances of the same object type. Determines the best assignment to previous detections.
         :param T_cos: [T_co, T_co, T_co...] unordered list of objects of the same type
         """
-        # T_bc = self.current_estimate.atPose3(self.camera_key)
-        T_bc = gtsam.Pose3(self.last_T_bc)
         noises = []
         for j in range(len(T_cn_s)):
-            # noises.append(SAM_noise.get_object_in_camera_noise(T_cn_s[j], T_bc.matrix(), f=0.03455))
             px_count = px_counts[j]
-            # old = SAM_noise.get_object_in_camera_noise_old(T_cn_s[j], T_bc.matrix(), f=0.03455).covariance()
-            # new = SAM_noise.get_object_in_camera_noise_px(T_cn_s[j], px_count).covariance()
             noises.append(SAM_noise.get_object_in_camera_noise_px(T_cn_s[j], px_count))
-            # noises.append(SAM_noise.get_object_in_camera_noise_old(T_cn_s[j], T_bc.matrix(), f=0.03455))
         if object_name not in self.detected_landmarks:  # no previous instance of this object.
             self.detected_landmarks[object_name] = []
             for j in range(len(T_cn_s)):
@@ -293,7 +294,6 @@ class SAM():
                 self.add_new_landmark(symbol, pose, noise, object_name)
         else:  # instance of the object has been previously detected
             D: np.ndarray = self.calculate_D(T_cn_s, noises, object_name)
-            # print(object_name, D)
             assignment = self.determine_assignment(D)
             for j in range(len(T_cn_s)):
                 i = assignment[j]
@@ -375,10 +375,10 @@ class SAM():
                 if timestamp is not None and landmark.initial_symbol != landmark.symbol:
                     dt = timestamp - self.current_time_stamp
                     nu12 = self.current_estimate.atVector(V(dL(landmark.symbol - 1)))
-                    T_oo = gtsam.Pose3.Expmap(nu12*dt)
+                    T_bb = gtsam.Pose3.Expmap(nu12*dt)
                 else:
-                    T_oo = gtsam.Pose3.Identity()
-                T_co = (T_bc.inverse().compose(T_oo).compose(T_bo)).matrix()
+                    T_bb = gtsam.Pose3.Identity()
+                T_co = (T_bc.inverse().compose(T_bb).compose(T_bo)).matrix()
                 ret[object_name].append({"T_co":T_co, "id":landmark.initial_symbol,"Q":Q, "valid":landmark_valid}, )
         return ret
 

@@ -15,6 +15,7 @@ from bop_tools import convert_frames_to_bop, export_bop
 import matplotlib.pyplot as plt
 import pinocchio as pin
 import gtsam
+import multiprocessing
 
 def load_data(path: Path):
     with open(path, 'rb') as file:
@@ -162,8 +163,8 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=20, tvt=0.00001, Rvt=
 
             idx = a*len(images) + i
             start_time = time.time()
-            if i % 4 == 0:
-            # if i % 1 == 0:
+            # if i % 4 == 0:
+            if i % 1 == 0:
                 sam.insert_odometry_measurements()
                 sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']), timestamp=i/30)
                 for key in frames_prediction[i]:
@@ -193,6 +194,18 @@ def annotate_dataset(DATASETS_PATH, datasets, ort=20, tvt=0.00001, Rvt=0.0002):
         results[DATASET_NAME] = result
     # export_bop(convert_frames_to_bop(results), DATASETS_PATH / 'frames_refined_predictions.csv')
 
+def annotate_dataset_multithreaded(DATASETS_PATH, datasets, ort, tvt, Rvt):
+    procs = []
+    start_time = time.time()
+    print(f"anotating datasets: {datasets}")
+    for DATASET_NAME in datasets:
+        proc = multiprocessing.Process(target=refine_ycbv_inference, args=(DATASETS_PATH, DATASET_NAME, ort, tvt, Rvt))
+        procs.append(proc)
+        proc.start()
+    for proc in procs:
+        proc.join()
+    print(f"elapsed_time:{time.time() - start_time}")
+
 def merge_inferences(DATASETS_PATH, datasets, merge_from="frames_prediction.p", merge_to = 'frames_predictions.csv', dataset_name="ycbv"):
     # datasets = [48]
     results = {}
@@ -218,14 +231,16 @@ if __name__ == "__main__":
 
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
-    # datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    datasets = [0]
-    # for ort in [1, 5, 10, 20, 50]:
-    #     for tvt, Rvt in [(0.00001, 0.001), (0.000005, 0.001), (0.00001, 0.0002), (0.000005, 0.0002)]:
-    #         print(f"{ort}, {tvt:.6f}, {Rvt:.6f}")
-    #         annotate_dataset(DATASET_PATH, datasets, ort=ort, tvt=tvt, Rvt=Rvt)
-    #         merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_{ort}_{tvt:.6f}_{Rvt:.4f}_.csv', dataset_type)
-    annotate_dataset(DATASET_PATH, datasets, ort=20, tvt=0.0001, Rvt=0.002)
+    datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # datasets = [0]
+    for ort in [20]:
+        for tvt, Rvt in [(0.000025, 0.00025), (0.00005, 0.0005), (0.0001, 0.001)]:
+            print(f"{ort}, {tvt:.10f}, {Rvt:.10f}")
+            annotate_dataset_multithreaded(DATASET_PATH, datasets, ort=ort, tvt=tvt, Rvt=Rvt)
+            merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_mod1_{ort}_{tvt:.10f}_{Rvt:.10f}_.csv', dataset_type)
+
+    # annotate_dataset(DATASET_PATH, datasets, ort=20, tvt=0.000025, Rvt=0.00025)  #  tvt=0.00001, Rvt=0.0001
+    # annotate_dataset_multithreaded(DATASET_PATH, datasets, ort=20, tvt=0.000025, Rvt=0.00025)
     # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test.csv', dataset_name)
     # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_name)
     merge_inferences(DATASET_PATH, datasets, "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)

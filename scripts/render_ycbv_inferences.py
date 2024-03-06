@@ -286,8 +286,8 @@ def main():
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "hopeVideo"
-    DATASET_NAME = "SynthStatic"
-    # DATASET_NAME = "SynthDynamic"
+    # DATASET_NAME = "SynthStatic"
+    DATASET_NAME = "SynthDynamic"
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
