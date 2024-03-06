@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import pinocchio as pin
 import gtsam
 from collections import defaultdict
+import multiprocessing
 
 HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
     "obj_000002": "BBQSauce",
@@ -188,7 +189,7 @@ def load_scene_camera(path):
         parsed_data.append(entry)
     return parsed_data
 
-def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME,elt=0.0001, ort=20, tvt=0.00001, Rvt=0.0002):
+def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, elt=0.0001, ort=20, tvt=0.00001, Rvt=0.0002):
     dataset_path = DATASETS_PATH/"test"/ f"{DATASET_NAME:06}"
 
     sam = SAM()
@@ -247,13 +248,24 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME,elt=0.0001, ort=20, tvt=0.
 
 def annotate_dataset(DATASETS_PATH, datasets,elt, ort, tvt, Rvt):
     results = {}
+    start_time = time.time()
     for DATASET_NAME in datasets:
         print(f"dataset: {DATASET_NAME}")
         dataset_path = DATASETS_PATH / "test" / f"{DATASET_NAME:06}"
         result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME,elt, ort=ort, tvt=tvt, Rvt=Rvt)
         results[DATASET_NAME] = result
-    # export_bop(convert_frames_to_bop(results), DATASETS_PATH / 'frames_refined_predictions.csv')
-
+    print(f"elapsed_time:{time.time() - start_time}")
+def annotate_dataset_multithreaded(DATASETS_PATH, datasets,elt, ort, tvt, Rvt):
+    procs = []
+    start_time = time.time()
+    print(f"anotating datasets: {datasets}")
+    for DATASET_NAME in datasets:
+        proc = multiprocessing.Process(target=refine_ycbv_inference, args=(DATASETS_PATH, DATASET_NAME,elt, ort, tvt, Rvt))
+        procs.append(proc)
+        proc.start()
+    for proc in procs:
+        proc.join()
+    print(f"elapsed_time:{time.time() - start_time}")
 def merge_inferences(DATASETS_PATH, datasets, merge_from="frames_prediction.p", merge_to = 'frames_predictions.csv', dataset_name="ycbv"):
     # datasets = [48]
     results = {}
@@ -273,20 +285,26 @@ if __name__ == "__main__":
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
-    DATASET_NAME = "SynthStatic"
-    # DATASET_NAME = "hopeVideo"
+    # DATASET_NAME = "SynthStatic"
+    DATASET_NAME = "hopeVideo"
     # DATASET_NAME = "SynthDynamic"
 
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # datasets = [0]
-    for ort in [5]:
-        for tvt, Rvt in [(0.00000385, 0.0002)]:
-            for elt in [0.0001]:
-                print(f"{ort}, {tvt:.10f}, {Rvt:.10f}")
-                annotate_dataset(DATASET_PATH, datasets,elt=elt, ort=ort, tvt=tvt, Rvt=Rvt)
-                merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_mod1_{elt}_{ort}_{tvt:.10f}_{Rvt:.10f}_.csv', dataset_type)
+    for ort in [1, 5, 10]: #  [5]:
+        for tvt in [1e-05, 5e-06, 1.e-06]: #  [(0.00000385, 0.0002)]:
+            for Rvt in [1e-03, 5e-04, 1e-04]: #  [(0.00000385, 0.0002)]:
+                for elt in [0.0001]:
+                    #  last iters:
+                    #  10, 0.0000100000, 0.0010000000
+                    #  10, 0.0000100000, 0.0005000000
+                    #  10, 0.0000100000, 0.0001000000 unfinished
+                    print(f"{ort}, {tvt:.10f}, {Rvt:.10f}")
+                    # annotate_dataset(DATASET_PATH, datasets,elt=elt, ort=ort, tvt=tvt, Rvt=Rvt)
+                    annotate_dataset_multithreaded(DATASET_PATH, datasets,elt=elt, ort=ort, tvt=tvt, Rvt=Rvt)
+                    merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_mod1_{elt}_{ort}_{tvt:.10f}_{Rvt:.10f}_.csv', dataset_type)
     # annotate_dataset(DATASET_PATH, datasets)
     # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test.csv', dataset_type)
     # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_type)

@@ -21,6 +21,9 @@ def dX(symbol):
 def dL(symbol):
     return symbol - L(0)
 
+def dV(symbol):
+    return symbol - V(0)
+
 class Landmark:
     MIN_LENGH_BEFORE_CUT = 3
 
@@ -72,6 +75,9 @@ class SymbolQueue:
             self.factors[symbol].append(self.last_factor)
 
     def pop(self):
+        """
+        :return: all symbols and all factors that are older than self.MAX_AGE
+        """
         if self.MAX_AGE > self.current_timestamp - self.first_timestamp:
             return [[],[]]
         ret = [[], []]
@@ -117,6 +123,7 @@ class SAM():
                            [0, 615.25, 237.82],
                            [0, 0, 1]])
 
+        self.SYMBOL_GAP = 10**6
 
         self.outlier_rejection_treshold = 20
         self.t_validity_treshold = 0.00001
@@ -171,7 +178,7 @@ class SAM():
 
     def get_new_symbol(self):
         # max_idx = 10**11
-        max_idx = 10**6
+        max_idx = self.SYMBOL_GAP
         symbol = L((((self.landmark_count + 1) % max_idx) * max_idx))
         return symbol
 
@@ -230,13 +237,11 @@ class SAM():
                     prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
                     self.current_graph.add(gtsam.BetweenFactorVector(V(dL(landmark.symbol-1)), V(dL(landmark.symbol)), np.zeros(6), prior_cst_twist))
                     self.symbol_queue.push_factor([V(dL(landmark.symbol-1)), V(dL(landmark.symbol))])
-                # elif landmark.initial_symbol == landmark.symbol:
-                #     self.current_estimate.insert
-                # time_elapsed = 0.00000000001
+
+
                 landmark.symbol += 1
                 time_elapsed = (self.current_time_stamp - self.previous_time_stamp)
-                # time_elapsed = 0.0001
-                # odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * time_elapsed)
+
                 prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
                 error_func = partial(error_velocity_integration_global, time_elapsed)
                 twist_symbol = V(dL(landmark.symbol - 1))
@@ -250,12 +255,17 @@ class SAM():
                 T_oo_estimate = self.current_estimate.atPose3(landmark.symbol - 1)
                 self.initial_estimate.insert(landmark.symbol, T_oo_estimate)
                 self.initial_estimate.insert(twist_symbol, np.zeros(6))
-
-                ### dirty hack
-                bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
-                self.current_graph.add(gtsam.PriorFactorPose3(landmark.symbol, T_oo_estimate, bogus_noise))
-                self.symbol_queue.push_factor([landmark.symbol])
-                ### dirty hack
+                # ### less dirty hack
+                if landmark.initial_symbol == landmark.symbol - 1:
+                    bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
+                    self.current_graph.add(gtsam.PriorFactorVector(twist_symbol, np.zeros(6), bogus_noise))
+                    self.symbol_queue.push_factor([twist_symbol])
+                # ### less dirty hack
+                # ### dirty hack
+                # bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
+                # self.current_graph.add(gtsam.PriorFactorPose3(landmark.symbol, T_oo_estimate, bogus_noise))
+                # self.symbol_queue.push_factor([landmark.symbol])
+                # ### dirty hack
                 self.all_factors_count += 1
 
 
@@ -309,16 +319,19 @@ class SAM():
             self.current_graph.remove(factor)
         for symbol in entries[1]:
             self.initial_estimate.erase(symbol)
+            if 0 < dV(symbol) < 10**4 * self.SYMBOL_GAP:
+                twist_symbol = symbol + 1
+                bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
+                twist_estimate = self.current_estimate.atVector(twist_symbol)
+                self.current_graph.add(gtsam.PriorFactorVector(twist_symbol, twist_estimate, bogus_noise))
+                self.symbol_queue.push_factor([twist_symbol])
+
         self.symbol_queue.increment()
-        for obj_name in list(self.detected_landmarks):
+        for obj_name in list(self.detected_landmarks):  # forget all objects that have not been seen for a while.
             for i in reversed(range(len(self.detected_landmarks[obj_name]))):
                 landmark = self.detected_landmarks[obj_name][i]
                 symbol = landmark.symbol
-                # Q = self.marginals.marginalCovariance(symbol)
-                # R_det = np.linalg.det(Q[:3, :3])**0.5
-                # t_det = np.linalg.det(Q[3:6, 3:6])**0.5
-                # if t_det > 0.0001 or (self.current_frame - landmark.last_seen_frame) >= self.symbol_queue.MAX_AGE:
-                if (self.current_frame - landmark.last_seen_frame) >= self.symbol_queue.MAX_AGE:
+                if (self.current_frame - landmark.last_seen_frame) >= self.symbol_queue.MAX_AGE:  # object is too old, completly remove it
                     twist_symbol = V(dL(symbol - 1))
                     while twist_symbol in self.symbol_queue.factors:
                         for factor in self.symbol_queue.factors[twist_symbol]:
