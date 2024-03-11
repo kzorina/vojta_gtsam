@@ -60,7 +60,7 @@ class Landmark:
 class SymbolQueue:
 
     def __init__(self):
-        self.MAX_AGE = 20
+        self.MAX_AGE = 40
         self.timestamps = defaultdict(list)
         self.first_timestamp = 0
         self.current_timestamp = 0
@@ -129,6 +129,8 @@ class SAM():
         self.outlier_rejection_treshold = 20
         self.t_validity_treshold = 0.00001
         self.R_validity_treshold = 0.0002
+        self.cov1 = 0.001
+        self.cov2 = 0.0001
 
     @staticmethod
     def parse_VariableIndex(variable_index):  # TODO: REMOVE THIS TEMPORARY FIX ASAP
@@ -249,13 +251,13 @@ class SAM():
             for landmark in self.detected_landmarks[object_name]:
 
                 if landmark.initial_symbol < landmark.symbol:  # landmark is not new
-                    prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.01)
+                    prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, self.cov1 * self.get_dt())
                     self.current_graph.add(gtsam.BetweenFactorVector(V(dL(landmark.symbol-1)), V(dL(landmark.symbol)), np.zeros(6), prior_cst_twist))
                     self.symbol_queue.push_factor([V(dL(landmark.symbol-1)), V(dL(landmark.symbol))])
 
                 landmark.symbol += 1
 
-                prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, 0.0001)
+                prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, self.cov2 * self.get_dt())
                 error_func = partial(error_velocity_integration_global, self.get_dt())
                 twist_symbol = V(dL(landmark.symbol - 1))
                 fint = gtsam.CustomFactor(
@@ -270,7 +272,7 @@ class SAM():
                 self.initial_estimate.insert(twist_symbol, np.zeros(6))
                 # ### less dirty hack
                 if landmark.initial_symbol == landmark.symbol - 1:
-                    bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
+                    bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 10.0)
                     self.current_graph.add(gtsam.PriorFactorVector(twist_symbol, np.zeros(6), bogus_noise))
                     self.symbol_queue.push_factor([twist_symbol])
                 self.all_factors_count += 1
@@ -321,7 +323,7 @@ class SAM():
             self.initial_estimate.erase(symbol)
             if 0 < dV(symbol) < 10**4 * self.SYMBOL_GAP:
                 twist_symbol = symbol + 1
-                bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 100.0)
+                bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 10.0)
                 twist_estimate = self.current_estimate.atVector(twist_symbol)
                 self.current_graph.add(gtsam.PriorFactorVector(twist_symbol, twist_estimate, bogus_noise))
                 self.symbol_queue.push_factor([twist_symbol])
