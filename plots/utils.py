@@ -66,6 +66,7 @@ def compute_t_id_log_err_pairs_for_object(frames, obj_label, camera_poses):
                             i,
                             track_id,
                             np.linalg.norm(pin.log(T)),
+                            # np.linalg.norm(pin.log3(T.rotation)),
                             predicted,
                             np.linalg.det(pose["Q"]),
                             np.linalg.det(pose["Q"][3:6, 3:6]) ** 0.5,

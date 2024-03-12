@@ -5,7 +5,7 @@ import cv2
 # from SAM_incremental_fixed_lag_smoother import SAM
 # from SAM_isam2 import SAM
 # from SAM_dynamic import SAM
-from SAM_dynamic import SAM
+from SAM_dynamic_swap import SAM
 import pickle
 from compare_gt_predictions2 import plot_split_results
 import time
@@ -254,28 +254,31 @@ if __name__ == "__main__":
 
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
-    datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    # datasets = [0, 1, 2]
+    # datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    datasets = [0, 1, 2]
     __refresh_dir(DATASETS_PATH/DATASET_NAME/"ablation")
-    datasets = [0]
+    # datasets = [0]
     pool = multiprocessing.Pool(processes=15)
-    # for ort in [20, 10, 5]:
-    for ort in [10, 15, 20]:
-        # for tvt, Rvt in [(0.000008, 0.0008), (0.00001,	0.001), (0.000025,	0.0025), (0.00005,	0.005)]:
-        for tvt, Rvt in [(0.000005,	0.001), (0.0000025,	0.0005), (0.00000125,	0.00025)]:
-        # for tvt in [0.0000025, 0.0000005, 0.0000025, 0.0000025]:
-        #     for Rvt in [0.0025, 0.0020, 0.0015, 0.001]:
-                # for cov1 in [0.1, 0.05, 0.01]:
-            for cov1 in [1.0]:
-                # for cov2 in [0.1, 0.05, 0.01]:
-                for cov2 in [0.001]:
+
+    # for ort in [3, 5]:
+    for ort in [7]:
+    # for ort in [2.5, 5.0, 7.5]:
+    #     for tvt, Rvt in [(0.00001,	0.002), (0.000015,	0.003)]:
+    #     for tvt, Rvt in [(0.00002,	0.004), (0.000015,	0.003)]:
+        for tvt, Rvt in [(0.00001,	0.002)]:
+
+            for cov1 in [10]:
+            # for cov1 in [20, 15]:
+
+                for cov2 in [0.000025]:
                     print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov1:.8f}, {cov2:.8f}")
                     output_name = f'gtsam_{DATASET_NAME}-test_{cov1:.8f}_{cov2:.8f}_{ort}_{tvt:.8f}_{Rvt:.8f}_.csv'
                     pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, cov1, cov2, ort, tvt, Rvt, output_name))
+                    # anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, cov1, cov2, ort, tvt, Rvt, output_name)
     pool.close()
     pool.join()
 
     # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction_mod6.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
-    merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction_mod6.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
+    merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

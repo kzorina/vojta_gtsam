@@ -36,14 +36,14 @@ def main():
     # DATASET_NAME = "hopeVideo"
     # DATASET_NAME = "SynthStatic"
     # DATASET_NAME = "SynthStaticDummy"
-    # DATASET_NAME = "SynthDynamicOcclusion"
-    DATASET_NAME = "SynthDynamic"
+    DATASET_NAME = "SynthDynamicOcclusion"
+    # DATASET_NAME = "SynthDynamic"
     dataset_path = DATASETS_DIR / DATASET_NAME
     scene_names = sorted(os.listdir(DATASETS_DIR / DATASET_NAME / "test"))
     output = []
     # ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
-    for scene_name in ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]:
-    # for scene_name in ["000000", "000001", "000002"]:
+    # for scene_name in ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]:
+    for scene_name in ["000000", "000001", "000002"]:
         scene_path = dataset_path / "test" / scene_name
         scene_obj_ids = load_scene_obj_ids(scene_path)
         for im_id in range(0, len(scene_obj_ids), 1):

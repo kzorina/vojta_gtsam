@@ -11,6 +11,18 @@ def add_stripe(img:np.ndarray, width):
     bottom_right = ((img.shape[1] + width)//2, img.shape[0])
     cv2.rectangle(img, top_left,bottom_right, (0,0,0), -1)
 
+def add_noise(img, sigma):
+    img_type = img.dtype
+    img_max = np.iinfo(img_type).max
+    rnd_img = np.random.normal(0, img_max * sigma, img.shape)
+    img = img.astype(np.float64)
+    img = (img + rnd_img)
+    img = np.clip(img, 0, img_max)
+    img = img.astype(img_type)
+    return img
+    # cv2.imshow('img', img)
+    # cv2.waitKey(0)
+
 def __soft_refresh_dir(path):
     if not os.path.isdir(path):
         os.makedirs(path)
@@ -31,7 +43,7 @@ def main():
         __soft_refresh_dir(new_scene_path)
         shutil.copyfile(scene_path/"scene_camera.json", new_scene_path/"scene_camera.json")
         shutil.copyfile(scene_path/"scene_gt.json", new_scene_path/"scene_gt.json")
-        for dir in ["depth", "mask", "mask_visib", "rgb"]:
+        for dir in ["rgb", "depth", "mask", "mask_visib"]:
             img_paths = scene_path / dir
             new_img_paths = new_scene_path / dir
             img_names = os.listdir(img_paths)
@@ -39,6 +51,8 @@ def main():
             for img_name in img_names:
                 img_path = img_paths / img_name
                 img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
+                if dir == "rgb":
+                    img = add_noise(img, 0.08)
                 add_stripe(img, 100)
                 # cv2.imshow('img', img)
                 # cv2.waitKey(0)
@@ -47,4 +61,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # add_noise(np.zeros((480, 640)), 10)
     main()

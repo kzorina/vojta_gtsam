@@ -37,7 +37,8 @@ for frame in frames_prediction:
 
 all_object_labels = sorted(all_object_labels)
 # for obj_label in all_object_labels:
-for obj_label in ['BBQSauce']:
+# for obj_label in ['BBQSauce', 'Cookies']:
+for obj_label in all_object_labels:
     fig, ax = plt.subplots(
         1, 1, squeeze=True, figsize=(3 * 6.4, 4.8)
     )  # type: plt.Figure, plt.Axes
@@ -63,11 +64,14 @@ for obj_label in ['BBQSauce']:
         plt.close(fig)
         continue
     for i, track_id in enumerate(np.unique(v[:, 1])):
-        conf = np.bitwise_and(v[:, 5] < 0.000005,  v[:, 6] < 0.001)
+        conf = np.bitwise_and(v[:, 5] < 0.00001,  v[:, 6] < 0.002)
+        # conf = np.bitwise_and(v[:, 5] < 0.000005,  v[:, 6] < 0.001)
         # conf = np.bitwise_and(v[:, 5] < 1.00000,  v[:, 6] < 1.000)
         # conf = np.bitwise_and(conf, v[:, 3] > .5)
         mask_predicted = np.bitwise_and(v[:, 1] == track_id, conf)
+        # mask_predicted = np.bitwise_and(v[:, 1] == track_id, v[:, 3] > .5)
         mask = mask_predicted
+        # mask = v[:, 1] == track_id
         # err = np.clip(1e15*v[mask, 3], 0, 1)
         # ax.fill_between(
         #     v[mask, 0],
