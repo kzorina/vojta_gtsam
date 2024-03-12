@@ -5,7 +5,7 @@ from gtsam import Symbol
 from gtsam.symbol_shorthand import B, V, X, L
 from typing import List, Dict, Set
 from SAM_noise import SAM_noise
-import graphviz
+# import graphviz
 import gtsam_unstable
 from functools import partial
 from custom_odom_factors import error_velocity_integration_local, error_velocity_integration_global
@@ -147,10 +147,10 @@ class SAM:
 
         self.SYMBOL_GAP = 10**6
 
-        self.outlier_rejection_treshold = 20
+        self.outlier_rejection_treshold = 40
         self.t_validity_treshold = 0.00001
         self.R_validity_treshold = 0.0002
-        self.cov1 = 0.001
+        self.cov1 = 0.1
         self.cov2 = 0.0001
         self.window_size = 20
         self.chunk_size = 10
@@ -376,15 +376,27 @@ class SAM:
         for object_name in self.detected_landmarks:
             object_entries = []
             for landmark in self.detected_landmarks[object_name]:
+                Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
+                landmark_valid = landmark.is_valid(self.current_frame, Q, self.t_validity_treshold,
+                                                   self.R_validity_treshold)
                 entry = {}
-                # cov = marginals.marginalCovariance(landmark.symbol)
-                cov = self.isam_wrapper.current_estimate.marginalCovariance(landmark.symbol)
                 T:gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
-                entry['T'] = T.matrix()
-                entry['Q'] = cov
+                entry['T_bo'] = T.matrix()
+                entry['Q'] = Q
+                entry['valid'] = landmark_valid
+                entry['id'] = landmark.initial_symbol
+                if (landmark.symbol > landmark.initial_symbol):
+                    entry['nu'] = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
+                else:
+                    entry['nu'] = np.zeros(6)
                 object_entries.append(entry)
             ret[object_name] = object_entries
         return ret
+
+    @staticmethod
+    def extrapolate_T_bo(T_bo, nu, dt):
+        T_bb = gtsam.Pose3.Expmap(nu * dt).matrix()
+        return T_bb @ T_bo
 
     # def draw_3d_estimate_mm(self):
     #     """Display the current estimate of a factor graph"""

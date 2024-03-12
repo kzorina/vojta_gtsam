@@ -4,7 +4,7 @@ from gtsam import Symbol
 from gtsam.symbol_shorthand import B, V, X, L
 from typing import List, Dict, Set
 from SAM_noise import SAM_noise
-import graphviz
+# import graphviz
 import gtsam_unstable
 
 import custom_gtsam_plot as gtsam_plot
@@ -334,18 +334,20 @@ class SAM():
                 ret[object_name].append({"T_co":T_co, "id":landmark.initial_symbol,"Q":Q, "valid":landmark_valid}, )
         return ret
 
+    @staticmethod
+    def extrapolate_T_bo(T_bo, nu, dt):
+        return T_bo
+
     def export_current_state(self):
         ret = {}
-        # marginals = gtsam.Marginals(self.graph, self.current_estimate)
         for object_name in self.detected_landmarks:
             object_entries = []
             for landmark in self.detected_landmarks[object_name]:
-                entry = {}
-                # cov = marginals.marginalCovariance(landmark.symbol)
-                cov = self.marginals.marginalCovariance(landmark.symbol)
+                Q = self.marginals.marginalCovariance(landmark.symbol)
+                landmark_valid = landmark.is_valid(self.current_frame, Q, self.t_validity_treshold,
+                                                   self.R_validity_treshold)
                 T:gtsam.Pose3 = self.current_estimate.atPose3(landmark.symbol)
-                entry['T'] = T.matrix()
-                entry['Q'] = cov
+                entry = {"T_bo":T.matrix(), "id":landmark.initial_symbol, "Q":Q, "valid":landmark_valid}
                 object_entries.append(entry)
             ret[object_name] = object_entries
         return ret
