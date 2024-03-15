@@ -36,6 +36,7 @@ class Landmark:
         self.last_seen_frame = frame
         self.chain_start = symbol
         self.initial_symbol = symbol
+        self.hysteresis_active = False
 
     def cut_chain_tail(self, max_length = 999):
         cut = min(self.chain_start + max_length, self.symbol - Landmark.MIN_LENGH_BEFORE_CUT)
@@ -44,13 +45,20 @@ class Landmark:
         self.chain_start = cut
         return ret
 
-    def is_valid(self, current_frame, Q, t_validity_treshold = 0.00001, R_validity_treshold = 0.0002):
+    def is_valid(self, current_frame, Q, t_validity_treshold = 0.00001, R_validity_treshold = 0.0002, hysteresis_coef = 1):
         R_det = np.linalg.det(Q[:3, :3]) ** 0.5
         t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
 
-        if t_det > t_validity_treshold or R_det > R_validity_treshold:
-            return False
-        return True
+        if self.hysteresis_active:
+            if t_det < t_validity_treshold * hysteresis_coef and R_det < R_validity_treshold * hysteresis_coef:
+                return True
+            else:
+                self.hysteresis_active = False
+                return False
+        if t_det < t_validity_treshold and R_det < R_validity_treshold:
+            self.hysteresis_active = True
+            return True
+        return False
 
         # if t_det > 0.0000004 or R_det > 0.000008:
         # n = 2
@@ -134,6 +142,7 @@ class SAMSettings:
     outlier_rejection_treshold: float = 40
     velocity_prior_sigma: float = 10
     velocity_diminishing_coef:float = 0.9
+    hysteresis_coef:float = 1
 
 class SAM:
     def __init__(self, settings = SAMSettings()):
@@ -161,7 +170,7 @@ class SAM:
 
         self.SYMBOL_GAP = 10**6
 
-        self.settings = SAMSettings()
+        self.settings = settings
 
 
     @staticmethod
@@ -382,7 +391,7 @@ class SAM:
             ret[object_name] = []
             for landmark in self.detected_landmarks[object_name]:
                 Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
-                landmark_valid = landmark.is_valid(self.current_frame, Q, self.settings.t_validity_treshold, self.settings.R_validity_treshold)
+                landmark_valid = landmark.is_valid(self.current_frame, Q, self.settings.t_validity_treshold, self.settings.R_validity_treshold, self.settings.hysteresis_coef)
                 # if landmark.is_valid(self.current_frame, Q):
                 if current_T_bc is None:
                     T_bc: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(self.camera_landmark.symbol)
@@ -407,7 +416,7 @@ class SAM:
             for landmark in self.detected_landmarks[object_name]:
                 Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
                 landmark_valid = landmark.is_valid(self.current_frame, Q, self.settings.t_validity_treshold,
-                                                   self.settings.R_validity_treshold)
+                                                   self.settings.R_validity_treshold, self.settings.hysteresis_coef)
                 entry = {}
                 T:gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
                 entry['T_bo'] = T.matrix()
