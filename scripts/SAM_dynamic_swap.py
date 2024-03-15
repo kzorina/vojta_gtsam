@@ -13,6 +13,7 @@ from custom_odom_factors import error_velocity_integration_local, error_velocity
 import custom_gtsam_plot as gtsam_plot
 import matplotlib.pyplot as plt
 from collections import defaultdict
+from dataclasses import dataclass
 
 from SAM_distribution_distances import mahalanobis_distance, bhattacharyya_distance
 
@@ -99,7 +100,7 @@ class ISAM2_wrapper:
                     Q_velocity = self.isams[self.active_chunk].marginalCovariance(velocity_symbol)
                 else:
                     nu = np.zeros(6)
-                    Q_velocity = np.eye(6)*10
+                    Q_velocity = np.eye(6)*1.0
                 velocity_noise = gtsam.noiseModel.Gaussian.Covariance(Q_velocity)
                 new_graph.add(gtsam.PriorFactorVector(velocity_symbol, nu, velocity_noise))
                 initial_estimate.insert(velocity_symbol, nu)
@@ -121,8 +122,21 @@ class ISAM2_wrapper:
         # return self.marginals.marginalCovariance(symbol)
 
 
+@dataclass
+class SAMSettings:
+    cov_drift_lin_vel: float =  0.1
+    cov_drift_ang_vel: float = 0.1
+    cov2: float = 0.0001
+    t_validity_treshold: float = 0.00001
+    R_validity_treshold: float = 0.0002
+    window_size: int = 20
+    chunk_size: int = 10
+    outlier_rejection_treshold: float = 40
+    velocity_prior_sigma: float = 10
+    velocity_diminishing_coef:float = 0.9
+
 class SAM:
-    def __init__(self):
+    def __init__(self, settings = SAMSettings()):
 
         self.isam_wrapper = ISAM2_wrapper()
 
@@ -147,13 +161,8 @@ class SAM:
 
         self.SYMBOL_GAP = 10**6
 
-        self.outlier_rejection_treshold = 40
-        self.t_validity_treshold = 0.00001
-        self.R_validity_treshold = 0.0002
-        self.cov1 = 0.1
-        self.cov2 = 0.0001
-        self.window_size = 20
-        self.chunk_size = 10
+        self.settings = SAMSettings()
+
 
     @staticmethod
     def parse_VariableIndex(variable_index):  # TODO: REMOVE THIS TEMPORARY FIX ASAP
@@ -208,15 +217,30 @@ class SAM:
         symbol = L((((self.landmark_count + 1) % max_idx) * max_idx))
         return symbol
 
+
+
+    def extrapolate_T_bo(self, T_bo_0, nu, dt):
+        a = self.settings.velocity_diminishing_coef
+        if isinstance(T_bo_0, np.ndarray):
+            T_bb = gtsam.Pose3.Expmap(nu*(a ** dt - 1)/ np.log(a)).matrix()
+            return T_bb @ T_bo_0
+        # else:
+        elif isinstance(T_bo_0, gtsam.Pose3):
+            T_bb = gtsam.Pose3.Expmap(nu*(a ** dt - 1)/ np.log(a))
+            return T_bb * T_bo_0
+        else:
+            raise Exception(f"T_bo_0 has invalid type{type(T_bo_0)}, must be either np.ndarray or gtsam.Pose3")
+
     def landmarkAtPose3(self, landmark):
-        T_bo_0 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol - 1)
+        T_bo_0:gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol - 1)
         twist_symbol = V(dL(landmark.symbol - 1))
         if self.isam_wrapper.current_estimate.exists(twist_symbol):
             nu = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
         else:
             nu = numpy.zeros(6)
-        T_bb = gtsam.Pose3.Expmap(nu * self.get_dt())
-        T_bo = T_bb * T_bo_0
+        T_bo = self.extrapolate_T_bo(T_bo_0=T_bo_0, nu=nu, dt=self.get_dt())
+        # T_bb = gtsam.Pose3.Expmap(nu * self.get_dt())
+        # T_bo = T_bb * T_bo_0
         return T_bo
 
     def get_dt(self):
@@ -250,7 +274,7 @@ class SAM:
         for i in range(D.shape[1]):
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
-            if minimum < self.outlier_rejection_treshold:
+            if minimum < self.settings.outlier_rejection_treshold:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
@@ -269,12 +293,17 @@ class SAM:
             for landmark in self.detected_landmarks[object_name]:
 
                 if landmark.initial_symbol < landmark.symbol:  # landmark is not new
-                    prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, self.cov1 * self.get_dt())
+                    cov1 = np.eye(6)
+                    cov1[:3, :3] = np.eye(3) * self.settings.cov_drift_ang_vel * self.get_dt()
+                    cov1[3:6, 3:6] = np.eye(3) * self.settings.cov_drift_lin_vel * self.get_dt()
+
+                    prior_cst_twist = gtsam.noiseModel.Gaussian.Covariance(cov1)
+                    # prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, self.settings.cov1 * self.get_dt())
                     self.isam_wrapper.add_factor(gtsam.BetweenFactorVector(V(dL(landmark.symbol-1)), V(dL(landmark.symbol)), np.zeros(6), prior_cst_twist))
 
                 landmark.symbol += 1
 
-                prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, self.cov2 * self.get_dt())
+                prior_int_twist = gtsam.noiseModel.Isotropic.Sigma(6, self.settings.cov2 * self.get_dt())
                 error_func = partial(error_velocity_integration_global, self.get_dt())
                 twist_symbol = V(dL(landmark.symbol - 1))
                 fint = gtsam.CustomFactor(
@@ -288,7 +317,7 @@ class SAM:
                 self.isam_wrapper.inser_estimate(twist_symbol, np.zeros(6))
                 # ### less dirty hack
                 if landmark.initial_symbol == landmark.symbol - 1:
-                    bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, 10.0)
+                    bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, self.settings.velocity_prior_sigma)
                     self.isam_wrapper.add_factor(gtsam.PriorFactorVector(twist_symbol, np.zeros(6), bogus_noise))
                 self.all_factors_count += 1
 
@@ -328,12 +357,12 @@ class SAM:
 
     def update_fls(self):  # call after each change of camera pose
         self.isam_wrapper.update()
-        if self.current_frame % self.chunk_size == self.chunk_size-1:
+        if self.current_frame % self.settings.chunk_size == self.settings.chunk_size-1:
             self.isam_wrapper.swap_chunks(self.detected_landmarks)
         for label in list(self.detected_landmarks):
             for idx in reversed(range(len(self.detected_landmarks[label]))):
                 landmark = self.detected_landmarks[label][idx]
-                if (self.current_frame - landmark.last_seen_frame) > self.window_size:
+                if (self.current_frame - landmark.last_seen_frame) > self.settings.window_size:
                     del self.detected_landmarks[label][idx]
             if len(self.detected_landmarks[label]) == 0:
                 del self.detected_landmarks[label]
@@ -353,7 +382,7 @@ class SAM:
             ret[object_name] = []
             for landmark in self.detected_landmarks[object_name]:
                 Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
-                landmark_valid = landmark.is_valid(self.current_frame, Q, self.t_validity_treshold, self.R_validity_treshold)
+                landmark_valid = landmark.is_valid(self.current_frame, Q, self.settings.t_validity_treshold, self.settings.R_validity_treshold)
                 # if landmark.is_valid(self.current_frame, Q):
                 if current_T_bc is None:
                     T_bc: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(self.camera_landmark.symbol)
@@ -377,8 +406,8 @@ class SAM:
             object_entries = []
             for landmark in self.detected_landmarks[object_name]:
                 Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
-                landmark_valid = landmark.is_valid(self.current_frame, Q, self.t_validity_treshold,
-                                                   self.R_validity_treshold)
+                landmark_valid = landmark.is_valid(self.current_frame, Q, self.settings.t_validity_treshold,
+                                                   self.settings.R_validity_treshold)
                 entry = {}
                 T:gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
                 entry['T_bo'] = T.matrix()
@@ -393,48 +422,7 @@ class SAM:
             ret[object_name] = object_entries
         return ret
 
-    @staticmethod
-    def extrapolate_T_bo(T_bo, nu, dt):
-        T_bb = gtsam.Pose3.Expmap(nu * dt).matrix()
-        return T_bb @ T_bo
 
-    # def draw_3d_estimate_mm(self):
-    #     """Display the current estimate of a factor graph"""
-    #     # Compute the marginals for all states in the graph.
-    #     marginals = gtsam.Marginals(self.current_graph, self.current_estimate)
-    #     # Plot the newly updated iSAM2 inference.
-    #     fig = plt.figure(0)
-    #     if not fig.axes:
-    #         axes = fig.add_subplot(projection='3d')
-    #     else:
-    #         axes = fig.axes[0]
-    #     plt.cla()
-    #     for object_name in self.detected_landmarks:
-    #         for idx, landmark in enumerate(self.detected_landmarks[object_name]):
-    #             if landmark.is_valid(self.current_frame, self.marginals.marginalCovariance(landmark.symbol), self.t_validity_treshold, self.R_validity_treshold):
-    #                 current_pose = self.current_estimate.atPose3(landmark.symbol)
-    #                 name = f'{object_name[:2]}_{idx}'
-    #                 cov = 500*marginals.marginalCovariance(landmark.symbol)
-    #                 gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
-    #                 axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
-    #
-    #     # for i in self.graph.keyVector():
-    #     for i in range(max(self.current_frame - 10, 1), self.current_frame):
-    #         key = X(i)
-    #         current_pose = self.current_estimate.atPose3(key)
-    #         name = str(Symbol(key).string())
-    #         cov = marginals.marginalCovariance(key)
-    #         gtsam_plot.plot_pose3(0, current_pose, 0.2, cov)
-    #         # gtsam_plot.plot_covariance_ellipse_3d(axes, current_pose.translation(), cov[:3, :3], alpha=0.3, cmap='cool')
-    #         axes.text(current_pose.x(), current_pose.y(), current_pose.z(), name, fontsize=15)
-    #
-    #     ranges = (-0.8, 0.8)
-    #     axes.set_xlim3d(ranges[0], ranges[1])
-    #     axes.set_ylim3d(ranges[0], ranges[1])
-    #     axes.set_zlim3d(ranges[0], ranges[1])
-    #     fig.show()
-    #     plt.pause(0.1)
-    #     return fig
 
 def main():
     pass

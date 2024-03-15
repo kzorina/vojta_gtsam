@@ -5,7 +5,7 @@ import cv2
 # from SAM_incremental_fixed_lag_smoother import SAM
 # from SAM_isam2 import SAM
 # from SAM_dynamic import SAM
-from SAM_dynamic_swap import SAM
+from SAM_dynamic_swap import SAM, SAMSettings
 import pickle
 from compare_gt_predictions2 import plot_split_results
 import time
@@ -149,17 +149,12 @@ def load_scene_camera(path):
         parsed_data.append(entry)
     return parsed_data
 
-def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, cov1, cov2, ort=20, tvt=0.00001, Rvt=0.0002):
+def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, sam_settings):
     dataset_path = DATASETS_PATH/"test"/ f"{DATASET_NAME:06}"
 
     sam = SAM()
     sam.current_time_stamp = -0.1
-    sam.outlier_rejection_treshold = ort
-    sam.t_validity_treshold = tvt
-    sam.R_validity_treshold = Rvt
-    sam.cov1 = cov1
-    sam.cov2 = cov2
-    sam.R_validity_treshold = Rvt
+    sam.settings = sam_settings
     frames_gt = load_scene_camera(dataset_path / "scene_camera.json")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
     px_counts = load_data(dataset_path / "frames_px_counts.p")
@@ -207,11 +202,11 @@ def annotate_dataset(DATASETS_PATH, datasets, cov1=0.001, cov2=0.0001, ort=20, t
         results[DATASET_NAME] = result
     # export_bop(convert_frames_to_bop(results), DATASETS_PATH / 'frames_refined_predictions.csv')
 
-def anotate_dataset_parallel_safe(dataset_name, DATASETS_PATH, datasets, cov1, cov2, ort, tvt, Rvt, output_name):
+def anotate_dataset_parallel_safe(dataset_name, DATASETS_PATH, datasets, sam_settings, output_name):
     results = {}
     print(f"datasets: {datasets}")
     for DATASET_NAME in datasets:
-        result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=ort, tvt=tvt, Rvt=Rvt, cov1=cov1, cov2=cov2)
+        result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, sam_settings)
         results[DATASET_NAME] = result
     export_bop(convert_frames_to_bop(results, dataset_name), DATASETS_PATH / "ablation" / output_name)
 
@@ -266,14 +261,16 @@ if __name__ == "__main__":
     #     for tvt, Rvt in [(0.00001,	0.002), (0.000015,	0.003)]:
     #     for tvt, Rvt in [(0.00002,	0.004), (0.000015,	0.003)]:
         for tvt, Rvt in [(0.00001,	0.002)]:
-
             for cov1 in [10]:
             # for cov1 in [20, 15]:
-
                 for cov2 in [0.000025]:
                     print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov1:.8f}, {cov2:.8f}")
                     output_name = f'gtsam_{DATASET_NAME}-test_{cov1:.8f}_{cov2:.8f}_{ort}_{tvt:.8f}_{Rvt:.8f}_.csv'
-                    pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, cov1, cov2, ort, tvt, Rvt, output_name))
+                    sam_settings = SAMSettings(cov1=cov1, cov2=cov2,
+                                               outlier_rejection_treshold=ort,
+                                               t_validity_treshold=tvt,
+                                               R_validity_treshold=Rvt)
+                    pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
                     # anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, cov1, cov2, ort, tvt, Rvt, output_name)
     pool.close()
     pool.join()
