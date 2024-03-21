@@ -5,7 +5,7 @@ import cv2
 # from SAM_incremental_fixed_lag_smoother import SAM
 # from SAM_isam2 import SAM
 # from SAM_dynamic import SAM
-from SAM_fifo import SAM
+from SAM_static_swap import SAM
 import pickle
 from compare_gt_predictions2 import plot_split_results
 import time
@@ -15,44 +15,22 @@ from bop_tools import convert_frames_to_bop, export_bop
 import matplotlib.pyplot as plt
 import pinocchio as pin
 import gtsam
-from collections import defaultdict
 import multiprocessing
 import shutil
-
-HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
-    "obj_000002": "BBQSauce",
-    "obj_000003": "Butter",
-    "obj_000004": "Cherries",
-    "obj_000005": "ChocolatePudding",
-    "obj_000006": "Cookies",
-    "obj_000007": "Corn",
-    "obj_000008": "CreamCheese",
-    "obj_000009": "GranolaBars",
-    "obj_000010": "GreenBeans",
-    "obj_000011": "Ketchup",
-    "obj_000012": "MacaroniAndCheese",
-    "obj_000013": "Mayo",
-    "obj_000014": "Milk",
-    "obj_000015": "Mushrooms",
-    "obj_000016": "Mustard",
-    "obj_000017": "OrangeJuice",
-    "obj_000018": "Parmesan",
-    "obj_000019": "Peaches",
-    "obj_000020": "PeasAndCarrots",
-    "obj_000021": "Pineapple",
-    "obj_000022": "Popcorn",
-    "obj_000023": "Raisins",
-    "obj_000024": "SaladDressing",
-    "obj_000025": "Spaghetti",
-    "obj_000026": "TomatoSauce",
-    "obj_000027": "Tuna",
-    "obj_000028": "Yogurt"}
 
 def load_data(path: Path):
     with open(path, 'rb') as file:
         data = pickle.load(file)
     return data
 
+def __refresh_dir(path):
+    """
+    Wipes a directory and all its content if it exists. Creates a new empty one.
+    :param path:
+    """
+    if os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=False, onerror=None)
+    os.makedirs(path)
 
 def plot_time_delays(time_delays, landmark_counts):
     figure, axis = plt.subplots(1)
@@ -123,7 +101,6 @@ def example_with_vizualization():
     objects_to_plot = ["2", "5", "7", "4", "3"]
     plot_split_results(objects_to_plot, frames_gt, [refined])
 
-
 def example_on_frames_prediction():
     base_path = Path(__file__).parent.parent / "datasets"
     # dataset_path = base_path / "crackers_new"
@@ -157,24 +134,6 @@ def example_on_frames_prediction():
 
     # plot_split_results(objects_to_plot, frames_gt, [refined])
 
-def load_scene_gt(path, label_list = None):
-    with open(path) as json_file:
-        data:dict = json.load(json_file)
-    parsed_data = []
-    for i in range(len(data)):
-        entry = defaultdict(lambda : [])
-        frame = i+1
-        for object in data[str(frame)]:
-            T_cm = np.zeros((4, 4))
-            T_cm[:3, :3] = np.array(object["cam_R_m2c"]).reshape((3, 3))
-            T_cm[:3, :3] = T_cm[:3, :3]
-            T_cm[:3, 3] = np.array(object["cam_t_m2c"]) / 1000
-            T_cm[3, 3] = 1
-            obj_id = object["obj_id"]
-            entry[label_list[obj_id-1]].append(T_cm)
-        parsed_data.append(entry)
-    return parsed_data
-
 def load_scene_camera(path):
     with open(path) as json_file:
         data:dict = json.load(json_file)
@@ -190,19 +149,19 @@ def load_scene_camera(path):
         parsed_data.append(entry)
     return parsed_data
 
-def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, elt=0.0001, ort=20, tvt=0.00001, Rvt=0.0002):
+def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, cov1, cov2, ort=20, tvt=0.00001, Rvt=0.0002):
     dataset_path = DATASETS_PATH/"test"/ f"{DATASET_NAME:06}"
 
     sam = SAM()
+    sam.current_time_stamp = -0.1
     sam.outlier_rejection_treshold = ort
     sam.t_validity_treshold = tvt
     sam.R_validity_treshold = Rvt
-    sam.elapsed_time = elt
-
-    frames_camera = load_scene_camera(dataset_path / "scene_camera.json")
+    sam.cov1 = cov1
+    sam.cov2 = cov2
+    sam.R_validity_treshold = Rvt
+    frames_gt = load_scene_camera(dataset_path / "scene_camera.json")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
-    frames_gt = load_scene_gt(dataset_path / "scene_gt.json", list(HOPE_OBJECT_NAMES.values()))
-    # frames_prediction = frames_gt  ### TODO: for test purpose only, remove afterwards!!!!
     px_counts = load_data(dataset_path / "frames_px_counts.p")
     refined = []
     estimate_progress = []
@@ -215,58 +174,60 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, elt=0.0001, ort=20, tvt=0
         for i, img_name in enumerate(images):
 
             idx = a*len(images) + i
-            # img_path = dataset_path / "rgb" / img_name
             start_time = time.time()
             if i % 1 == 0:
-            # if i % 1 == 0:
+            # if i % 6 == 0:
                 sam.insert_odometry_measurements()
-                sam.insert_T_bc_detection(np.linalg.inv(frames_camera[i]['T_cw']))
+                sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']), timestamp=i/30)
                 for key in frames_prediction[i]:
                     sam.insert_T_co_detections(frames_prediction[i][key], key, px_counts[i][key])
                 sam.update_fls()
-                poses = sam.get_all_T_co()
+                poses = sam.get_all_T_co(timestamp=i/30)
             else:
-                poses = sam.get_all_T_co(current_T_bc=np.linalg.inv(frames_camera[i]['T_cw']))
-            # sam.update_current_estimate()
+                poses = sam.get_all_T_co(current_T_bc=np.linalg.inv(frames_gt[i]['T_cw']), timestamp=i/30)
+                pass
 
             time_each_frame[idx] = time.time() - start_time
             landmarks_each_frame[idx] = sam.all_factors_count
-            # estimate_progress.append(sam.export_current_state())
-            # fig = sam.draw_3d_estimate_mm()
-            # fig.savefig(dataset_path/"gtsam_viz"/f'{i:04}.png')
-            # poses = sam.get_all_T_co()
             refined.append(poses)
-
-    # with open(dataset_path / 'estimate_progress.p', 'wb') as file:
-    #     pickle.dump(estimate_progress, file)
             print(f"\r({(idx + 1)}/{len(images)*repetitions})", end='')
-    # plot_estimate_progress(estimate_progress)
-    # plot_time_delays(time_each_frame, landmarks_each_frame)
+
     print("")
     with open(dataset_path / 'frames_refined_prediction.p', 'wb') as file:
         pickle.dump(refined, file)
-    # plot_split_results(objects_to_plot, frames_gt, [refined])
+    return refined
 
-def annotate_dataset(DATASETS_PATH, datasets,elt, ort, tvt, Rvt):
+
+def annotate_dataset(DATASETS_PATH, datasets, cov1=0.001, cov2=0.0001, ort=20, tvt=0.00001, Rvt=0.0002):
     results = {}
-    start_time = time.time()
     for DATASET_NAME in datasets:
         print(f"dataset: {DATASET_NAME}")
         dataset_path = DATASETS_PATH / "test" / f"{DATASET_NAME:06}"
-        result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME,elt, ort=ort, tvt=tvt, Rvt=Rvt)
+        result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=ort, tvt=tvt, Rvt=Rvt, cov1=cov1, cov2=cov2)
         results[DATASET_NAME] = result
-    print(f"elapsed_time:{time.time() - start_time}")
-def annotate_dataset_multithreaded(DATASETS_PATH, datasets,elt, ort, tvt, Rvt):
+    # export_bop(convert_frames_to_bop(results), DATASETS_PATH / 'frames_refined_predictions.csv')
+
+def anotate_dataset_parallel_safe(dataset_name, DATASETS_PATH, datasets, cov1, cov2, ort, tvt, Rvt, output_name):
+    results = {}
+    print(f"datasets: {datasets}")
+    for DATASET_NAME in datasets:
+        result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, ort=ort, tvt=tvt, Rvt=Rvt, cov1=cov1, cov2=cov2)
+        results[DATASET_NAME] = result
+    export_bop(convert_frames_to_bop(results, dataset_name), DATASETS_PATH / "ablation" / output_name)
+
+
+def annotate_dataset_multithreaded(DATASETS_PATH, datasets, cov1, cov2, ort, tvt, Rvt):
     procs = []
     start_time = time.time()
     print(f"anotating datasets: {datasets}")
     for DATASET_NAME in datasets:
-        proc = multiprocessing.Process(target=refine_ycbv_inference, args=(DATASETS_PATH, DATASET_NAME,elt, ort, tvt, Rvt))
+        proc = multiprocessing.Process(target=refine_ycbv_inference, args=(DATASETS_PATH, DATASET_NAME,cov1, cov2, ort, tvt, Rvt))
         procs.append(proc)
         proc.start()
     for proc in procs:
         proc.join()
     print(f"elapsed_time:{time.time() - start_time}")
+
 def merge_inferences(DATASETS_PATH, datasets, merge_from="frames_prediction.p", merge_to = 'frames_predictions.csv', dataset_name="ycbv"):
     # datasets = [48]
     results = {}
@@ -274,16 +235,7 @@ def merge_inferences(DATASETS_PATH, datasets, merge_from="frames_prediction.p", 
         dataset_path = DATASETS_PATH / "test" / f"{DATASET_NAME:06}"
         result = load_data(dataset_path/merge_from)
         results[DATASET_NAME] = result
-    export_bop(convert_frames_to_bop(results, dataset_name), DATASETS_PATH / "ablation" / merge_to)
-
-def __refresh_dir(path):
-    """
-    Wipes a directory and all its content if it exists. Creates a new empty one.
-    :param path:
-    """
-    if os.path.isdir(path):
-        shutil.rmtree(path, ignore_errors=False, onerror=None)
-    os.makedirs(path)
+    export_bop(convert_frames_to_bop(results, dataset_name), DATASETS_PATH / merge_to)
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -295,31 +247,35 @@ if __name__ == "__main__":
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
-    # DATASET_NAME = "SynthStatic"
-    DATASET_NAME = "hopeVideo"
+    DATASET_NAME = "SynthStatic"
+    # DATASET_NAME = "hopeVideo"
     # DATASET_NAME = "SynthDynamic"
+    # DATASET_NAME = "SynthDynamicOcclusion"
 
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
-    __refresh_dir(DATASET_PATH / "ablation")
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     # datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     datasets = [0, 1, 2]
+    __refresh_dir(DATASETS_PATH/DATASET_NAME/"ablation")
     # datasets = [0]
-    for ort in [5, 10]: #  [5]:
-        for tvt in [1e-05, 5e-06, 1.e-06]: #  [(0.00000385, 0.0002)]:
-            for Rvt in [1e-03, 5e-04, 1e-04]: #  [(0.00000385, 0.0002)]:
-                for elt in [0.0001]:
-                    #  last iters:
-                    #  10, 0.0000100000, 0.0010000000
-                    #  10, 0.0000100000, 0.0005000000
-                    #  10, 0.0000100000, 0.0001000000 unfinished
-                    print(f"{ort}, {tvt:.10f}, {Rvt:.10f}")
-                    # annotate_dataset(DATASET_PATH, datasets,elt=elt, ort=ort, tvt=tvt, Rvt=Rvt)
-                    annotate_dataset_multithreaded(DATASET_PATH, datasets, elt=elt, ort=ort, tvt=tvt, Rvt=Rvt)
-                    merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test_mod1_0_{elt}_{ort}_{tvt:.10f}_{Rvt:.10f}_.csv', dataset_type)
-    # annotate_dataset(DATASET_PATH, datasets)
-    # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", f'gtsam_{DATASET_NAME}-test.csv', dataset_type)
-    # merge_inferences(DATASET_PATH, datasets, "frames_refined_prediction.p", 'gtsam_hopeVideo-test_fifo.csv', dataset_type)
-    merge_inferences(DATASET_PATH, datasets, "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
+    pool = multiprocessing.Pool(processes=12)
+    cov2 = 0
+    # for ort in [3, 5]:
+    for ort in [5, 10]:
+    # for ort in [2.5, 5.0, 7.5]:
+    #     for tvt, Rvt in [(0.00001,	0.002), (0.000015,	0.003)]:
+    #     for tvt, Rvt in [(0.00002,	0.004), (0.000015,	0.003)]:
+        for tvt in [1e-05, 5e-06, 1.e-06]:
+            for Rvt in [1e-03, 5e-04, 1e-04]:
+                for cov1 in [0.003]:
+                    print(f"{ort}, {tvt:.8f}, {Rvt:.8f}")
+                    output_name = f'gtsam_{DATASET_NAME}-test_{cov1:.8f}_{cov2:.8f}_{ort}_{tvt:.8f}_{Rvt:.8f}_.csv'
+                    pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, cov1, cov2, ort, tvt, Rvt, output_name))
+                    # anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, cov1, cov2, ort, tvt, Rvt, output_name)
+    pool.close()
+    pool.join()
+
+    # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction_mod6.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
+    merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

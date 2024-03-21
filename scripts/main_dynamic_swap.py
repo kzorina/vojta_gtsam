@@ -152,9 +152,8 @@ def load_scene_camera(path):
 def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, sam_settings):
     dataset_path = DATASETS_PATH/"test"/ f"{DATASET_NAME:06}"
 
-    sam = SAM()
+    sam = SAM(sam_settings)
     sam.current_time_stamp = -0.1
-    sam.settings = sam_settings
     frames_gt = load_scene_camera(dataset_path / "scene_camera.json")
     frames_prediction = load_data(dataset_path / "frames_prediction.p")
     px_counts = load_data(dataset_path / "frames_px_counts.p")
@@ -245,37 +244,49 @@ if __name__ == "__main__":
     # DATASET_NAME = "SynthStatic"
     # DATASET_NAME = "hopeVideo"
     # DATASET_NAME = "SynthDynamic"
-    DATASET_NAME = "SynthDynamicOcclusion"
+    # DATASET_NAME = "SynthDynamicOcclusion"
+    DATASET_NAME = "SynthTest"
 
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     # datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    datasets = [0, 1, 2]
-    __refresh_dir(DATASETS_PATH/DATASET_NAME/"ablation")
-    # datasets = [0]
+    # datasets = [0, 1, 2]
+    datasets = [0]
+    __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
     pool = multiprocessing.Pool(processes=15)
 
-    # for ort in [3, 5]:
-    for ort in [7]:
-    # for ort in [2.5, 5.0, 7.5]:
-    #     for tvt, Rvt in [(0.00001,	0.002), (0.000015,	0.003)]:
-    #     for tvt, Rvt in [(0.00002,	0.004), (0.000015,	0.003)]:
-        for tvt, Rvt in [(0.00001,	0.002)]:
-            for cov1 in [10]:
-            # for cov1 in [20, 15]:
-                for cov2 in [0.000025]:
-                    print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov1:.8f}, {cov2:.8f}")
-                    output_name = f'gtsam_{DATASET_NAME}-test_{cov1:.8f}_{cov2:.8f}_{ort}_{tvt:.8f}_{Rvt:.8f}_.csv'
-                    sam_settings = SAMSettings(cov1=cov1, cov2=cov2,
-                                               outlier_rejection_treshold=ort,
-                                               t_validity_treshold=tvt,
-                                               R_validity_treshold=Rvt)
-                    pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
-                    # anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, cov1, cov2, ort, tvt, Rvt, output_name)
+    for ws in [20]:
+        for ort in [300]:
+            # for tvt, Rvt in [(0.0000025, 0.0005)]:
+            for tvt in [0.000005]:
+                for Rvt in [0.001]:
+                #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
+                    for cov_drift_lin_vel in [0.001]:
+                        # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
+                        for cov_drift_ang_vel in [0.00001]:
+                            for cov2_t in [0.00000000001]:
+                                for cov2_R in [0.00000000001]:
+                                # for hyster in [25, 200, 800]:
+                                    for hyster in [1]:
+                                        sam_settings = SAMSettings(window_size=ws,
+                                                                   cov_drift_lin_vel=cov_drift_lin_vel,
+                                                                   cov_drift_ang_vel=cov_drift_ang_vel,
+                                                                   cov2_t=cov2_t,
+                                                                   cov2_R=cov2_R,
+                                                                   outlier_rejection_treshold=ort,
+                                                                   t_validity_treshold=tvt,
+                                                                   R_validity_treshold=Rvt,
+                                                                   hysteresis_coef=hyster,
+                                                                   velocity_prior_sigma=10)
+                                        print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
+                                        output_name = f'gtsam_{DATASET_NAME}-test_{str(sam_settings)}_.csv'
+
+                                        pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
+                                        # anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
     pool.close()
     pool.join()
 
     # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction_mod6.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
-    merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
+    # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

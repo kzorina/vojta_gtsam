@@ -65,8 +65,8 @@ def compute_t_id_log_err_pairs_for_object(frames, obj_label, camera_poses):
                         [
                             i,
                             track_id,
-                            np.linalg.norm(pin.log(T)),
-                            # np.linalg.norm(pin.log3(T.rotation)),
+                            np.linalg.norm(pin.log3(T.rotation)),
+                            np.linalg.norm(T.translation),
                             predicted,
                             np.linalg.det(pose["Q"]),
                             np.linalg.det(pose["Q"][3:6, 3:6]) ** 0.5,
@@ -76,7 +76,7 @@ def compute_t_id_log_err_pairs_for_object(frames, obj_label, camera_poses):
                 else:
                     T = cam_w2c * pin.SE3(pose)
                     track_id = 0
-                    v.append([i, track_id, np.linalg.norm(pin.log(T))])
+                    v.append([i, track_id,  np.linalg.norm(pin.log3(T.rotation)), np.linalg.norm(T.translation)])
     return np.asarray(v)
 
 

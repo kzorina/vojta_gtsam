@@ -288,10 +288,12 @@ def main():
     # DATASET_NAME = "hopeVideo"
     # DATASET_NAME = "SynthStatic"
     # DATASET_NAME = "SynthDynamic"
-    DATASET_NAME = "SynthDynamicOcclusion"
+    # DATASET_NAME = "SynthDynamicOcclusion"
+    DATASET_NAME = "SynthTest"
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
+    SCENES_NAMES = ["000000"]
 
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)

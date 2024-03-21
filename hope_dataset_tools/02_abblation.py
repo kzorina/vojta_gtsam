@@ -12,10 +12,13 @@ import matplotlib.pyplot as plt
 # for file_name in ["abblation_synth_hope_static", "abblation_hope_video"]:
 for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     # data = pd.read_csv(Path(__file__).parent / "abblation" / f"{file_name}.csv")
-    data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/hope_dataset_tools/ablation_synth_hope_dynamic_occlusion.csv", sep='\t')
+    data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/hope_dataset_tools/ablation_synth_hope_dynamic_occlusion_3.csv", sep='\t')
     data = data.rename(
         columns={
-            "covariance1": "cov1",
+            "window_size": "ws",
+            "hysteresis": "hyst",
+            "covariance1_t": "cov1_t",
+            "covariance1_R": "cov1_R",
             "covariance2": "cov2",
             "outlier_threshold": "outlier",
             "translation_validity_threshold": "translation",
@@ -25,7 +28,7 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
         }
     )
 
-    ind = data["cov1"] == "cosypose"
+    ind = data["ws"] == "cosypose"
     data_sam = data[~ind]
     data_cosypose = data[ind]
     data_sam["outlier"] = pd.to_numeric(data_sam["outlier"])
@@ -52,7 +55,7 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
                 sel.outlier,
                 sel.recall,
                 "-o",
-                label=f"Recall ({translations[i]:.1e},{rotations[j]:.0e})",
+                label=f"Recall ({translations[i]:.1e},{rotations[j]})",
                 # color=plt.colormaps["tab10"].colors[ci],
                 lw=lw,
             )
@@ -60,7 +63,7 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
                 sel.outlier,
                 sel.precision,
                 "--x",
-                label=f"Precision ({translations[i]:.1e},{rotations[j]:.0e})",
+                label=f"Precision ({translations[i]:.1e},{rotations[j]})",
                 # color=plt.colormaps["tab10"].colors[ci],
                 lw=lw,
             )
@@ -122,7 +125,6 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     ax.set_xlabel("Precision")
     ax.set_xlim(0.5,1)
     ax.axes.set_aspect("equal")
-
     # ax.legend(
     #     loc="upper center",
     #     bbox_to_anchor=(0.5, 1.25),
@@ -132,45 +134,5 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     # )
     fig.subplots_adjust(top=0.8)
     fig.savefig(f"{file_name}.png")
-
+    plt.grid()
     plt.show()
-
-#
-# # Plot recal precission for single outlier
-# recall = np.zeros((len(translations), len(rotations)))
-# precision = np.zeros_like(recall)
-# xx, yy = np.zeros_like(recall), np.zeros_like(recall)
-# d = data_sam[data_sam["outlier"] == 5]
-# for i in range(len(translations)):
-#     for j in range(len(rotations)):
-#         sel = d[(d["translation"] == translations[i]) & (d["rotation"] == rotations[j])]
-#         xx[i, j] = sel.translation
-#         yy[i, j] = sel.rotation
-#         recall[i, j] = sel.recall
-#         precision[i, j] = sel.precision
-#
-# fig: plt.Figure
-# fig, axes = plt.subplots(1, 2, squeeze=True, figsize=(6.4 * 2, 4.8))
-# ax = axes[0]
-# pc = ax.pcolormesh(xx, yy, recall, cmap="winter")
-# fig.colorbar(pc)
-# ax.set_xticks(translations)
-# ax.set_xlabel("Translation threshold")
-# ax.set_yticks(rotations)
-# ax.set_ylabel("Rotation threshold")
-# ax.set_title("Avg. recall")
-# ax.grid(False)
-# ax = axes[1]
-#
-# pc = ax.pcolormesh(xx, yy, precision, cmap="winter")
-# fig.colorbar(pc)
-# ax.set_xticks(translations)
-# ax.set_xlabel("Translation threshold")
-# ax.set_yticks(rotations)
-# ax.set_ylabel("Rotation threshold")
-# ax.set_title("Avg. precision")
-# ax.grid(False)
-# fig.suptitle("SynthHopeStatic; outlier threshold = 5")
-# fig.savefig("outlier_5.png")
-
-# plt.show()

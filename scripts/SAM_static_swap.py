@@ -5,15 +5,14 @@ from gtsam import Symbol
 from gtsam.symbol_shorthand import B, V, X, L
 from typing import List, Dict, Set
 from SAM_noise import SAM_noise
-# import graphviz
+import graphviz
 import gtsam_unstable
 from functools import partial
-import custom_odom_factors
+from custom_odom_factors import error_velocity_integration_local, error_velocity_integration_global
 
 import custom_gtsam_plot as gtsam_plot
 import matplotlib.pyplot as plt
 from collections import defaultdict
-from dataclasses import dataclass
 
 from SAM_distribution_distances import mahalanobis_distance, bhattacharyya_distance
 
@@ -29,15 +28,13 @@ def dV(symbol):
 class Landmark:
     MIN_LENGH_BEFORE_CUT = 3
 
-    def __init__(self, symbol, frame, settings=None):
+    def __init__(self, symbol, frame):
         self.symbol: Symbol = symbol
         self.innitial_frame = frame
         self.number_of_detections = 1
         self.last_seen_frame = frame
         self.chain_start = symbol
         self.initial_symbol = symbol
-        self.hysteresis_active = False
-        self.settings = settings
 
     def cut_chain_tail(self, max_length = 999):
         cut = min(self.chain_start + max_length, self.symbol - Landmark.MIN_LENGH_BEFORE_CUT)
@@ -46,20 +43,13 @@ class Landmark:
         self.chain_start = cut
         return ret
 
-    def is_valid(self, current_frame, Q):
+    def is_valid(self, current_frame, Q, t_validity_treshold = 0.00001, R_validity_treshold = 0.0002):
         R_det = np.linalg.det(Q[:3, :3]) ** 0.5
         t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
 
-        if self.hysteresis_active:
-            if t_det < self.settings.t_validity_treshold * self.settings.hysteresis_coef and R_det < self.settings.R_validity_treshold * self.settings.hysteresis_coef:
-                return True
-            else:
-                self.hysteresis_active = False
-                return False
-        if t_det < self.settings.t_validity_treshold and R_det < self.settings.R_validity_treshold:
-            self.hysteresis_active = True
-            return True
-        return False
+        if t_det > t_validity_treshold or R_det > R_validity_treshold:
+            return False
+        return True
 
         # if t_det > 0.0000004 or R_det > 0.000008:
         # n = 2
@@ -109,7 +99,7 @@ class ISAM2_wrapper:
                     Q_velocity = self.isams[self.active_chunk].marginalCovariance(velocity_symbol)
                 else:
                     nu = np.zeros(6)
-                    Q_velocity = np.eye(6)*1.0
+                    Q_velocity = np.eye(6)*10
                 velocity_noise = gtsam.noiseModel.Gaussian.Covariance(Q_velocity)
                 new_graph.add(gtsam.PriorFactorVector(velocity_symbol, nu, velocity_noise))
                 initial_estimate.insert(velocity_symbol, nu)
@@ -131,34 +121,8 @@ class ISAM2_wrapper:
         # return self.marginals.marginalCovariance(symbol)
 
 
-@dataclass
-class SAMSettings:
-    cov_drift_lin_vel: float = 0.1
-    cov_drift_ang_vel: float = 0.1
-    cov2_t: float = 0.0001
-    cov2_R: float = 0.0001
-    t_validity_treshold: float = 0.00001
-    R_validity_treshold: float = 0.0002
-    window_size: int = 20
-    chunk_size: int = 10
-    outlier_rejection_treshold: float = 40
-    velocity_prior_sigma: float = 10
-    velocity_diminishing_coef:float = 0.99
-    hysteresis_coef:float = 1
-
-    def __repr__(self):
-        return f"{self.window_size}_" \
-               f"{self.hysteresis_coef}_" \
-               f"{self.cov_drift_lin_vel}_" \
-               f"{self.cov_drift_ang_vel}_" \
-               f"{self.cov2_t:.2E}_" \
-               f"{self.cov2_R:.2E}_" \
-               f"{self.outlier_rejection_treshold}_" \
-               f"{self.t_validity_treshold:.2E}_" \
-               f"{self.R_validity_treshold:.2E}"
-
 class SAM:
-    def __init__(self, settings):
+    def __init__(self):
 
         self.isam_wrapper = ISAM2_wrapper()
 
@@ -183,8 +147,13 @@ class SAM:
 
         self.SYMBOL_GAP = 10**6
 
-        self.settings = settings
-
+        self.outlier_rejection_treshold = 20
+        self.t_validity_treshold = 0.00001
+        self.R_validity_treshold = 0.0002
+        self.cov1 = 0.003
+        self.cov2 = 0.0001
+        self.window_size = 60
+        self.chunk_size = 10
 
     @staticmethod
     def parse_VariableIndex(variable_index):  # TODO: REMOVE THIS TEMPORARY FIX ASAP
@@ -239,35 +208,15 @@ class SAM:
         symbol = L((((self.landmark_count + 1) % max_idx) * max_idx))
         return symbol
 
-    # def extrapolate_T_bo(self, T_bo_0, nu, dt):
-    #     a = self.settings.velocity_diminishing_coef
-    #     if isinstance(T_bo_0, np.ndarray):
-    #         T_bb = gtsam.Pose3.Expmap(nu*(a ** dt - 1)/ np.log(a)).matrix()
-    #         return T_bb @ T_bo_0
-    #     # else:
-    #     elif isinstance(T_bo_0, gtsam.Pose3):
-    #         T_bb = gtsam.Pose3.Expmap(nu*(a ** dt - 1)/ np.log(a))
-    #         return T_bb * T_bo_0
-    #     else:
-    #         raise Exception(f"T_bo_0 has invalid type{type(T_bo_0)}, must be either np.ndarray or gtsam.Pose3")
-    def extrapolate_T_bo(self, T_bo_0, nu, dt):
-        if isinstance(T_bo_0, np.ndarray):
-            return custom_odom_factors.plus_so3r3_global(gtsam.Pose3(T_bo_0), nu, dt).matrix()
-        elif isinstance(T_bo_0, gtsam.Pose3):
-            return custom_odom_factors.plus_so3r3_global(T_bo_0, nu, dt)
-        else:
-            raise Exception(f"T_bo_0 has invalid type{type(T_bo_0)}, must be either np.ndarray or gtsam.Pose3")
-
     def landmarkAtPose3(self, landmark):
-        T_bo_0:gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol - 1)
+        T_bo_0 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol - 1)
         twist_symbol = V(dL(landmark.symbol - 1))
         if self.isam_wrapper.current_estimate.exists(twist_symbol):
             nu = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
         else:
             nu = numpy.zeros(6)
-        T_bo = self.extrapolate_T_bo(T_bo_0=T_bo_0, nu=nu, dt=self.get_dt())
-        # T_bb = gtsam.Pose3.Expmap(nu * self.get_dt())
-        # T_bo = T_bb * T_bo_0
+        T_bb = gtsam.Pose3.Expmap(nu * self.get_dt())
+        T_bo = T_bb * T_bo_0
         return T_bo
 
     def get_dt(self):
@@ -301,7 +250,7 @@ class SAM:
         for i in range(D.shape[1]):
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
-            if minimum < self.settings.outlier_rejection_treshold:
+            if minimum < self.outlier_rejection_treshold:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
         return assignment
@@ -312,44 +261,20 @@ class SAM:
         T_bo_estimate = gtsam.Pose3(self.last_T_bc).compose(pose)
         self.isam_wrapper.inser_estimate(symbol, T_bo_estimate)
         self.all_factors_count += 1
-        self.detected_landmarks[object_name].append(Landmark(symbol, self.current_frame, self.settings))
+        self.detected_landmarks[object_name].append(Landmark(symbol, self.current_frame))
         self.landmark_count += 1
 
     def insert_odometry_measurements(self):
         for object_name in self.detected_landmarks:
             for landmark in self.detected_landmarks[object_name]:
-
-                if landmark.initial_symbol < landmark.symbol:  # landmark is not new
-                    cov1 = np.eye(6)
-                    cov1[:3, :3] = np.eye(3) * self.settings.cov_drift_ang_vel * self.get_dt()
-                    cov1[3:6, 3:6] = np.eye(3) * self.settings.cov_drift_lin_vel * self.get_dt()
-
-                    prior_cst_twist = gtsam.noiseModel.Gaussian.Covariance(cov1)
-                    # prior_cst_twist = gtsam.noiseModel.Isotropic.Sigma(6, self.settings.cov1 * self.get_dt())
-                    self.isam_wrapper.add_factor(gtsam.BetweenFactorVector(V(dL(landmark.symbol-1)), V(dL(landmark.symbol)), np.zeros(6), prior_cst_twist))
-
                 landmark.symbol += 1
+                odometry = gtsam.Pose3(np.eye(4))
+                odometry_noise = gtsam.noiseModel.Gaussian.Covariance(np.eye(6) * self.get_dt()*self.cov1)
 
-                cov2 = np.eye(6)
-                cov2[:3, :3] = np.eye(3) * self.settings.cov2_R * self.get_dt()
-                cov2[3:6, 3:6] = np.eye(3) * self.settings.cov2_t * self.get_dt()
-                prior_int_twist = gtsam.noiseModel.Gaussian.Covariance(cov2)
-                error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, self.get_dt())
-                # error_func = partial(custom_odom_factors.error_velocity_integration_global, self.get_dt())
-                twist_symbol = V(dL(landmark.symbol - 1))
-                fint = gtsam.CustomFactor(
-                    prior_int_twist,
-                    [landmark.symbol - 1, landmark.symbol, twist_symbol],
-                    error_func
-                )
-                self.isam_wrapper.add_factor(fint)
+                self.isam_wrapper.add_factor(gtsam.BetweenFactorPose3(landmark.symbol - 1, landmark.symbol, odometry, odometry_noise))
                 T_oo_estimate = self.isam_wrapper.current_estimate.atPose3(landmark.symbol - 1)
                 self.isam_wrapper.inser_estimate(landmark.symbol, T_oo_estimate)
-                self.isam_wrapper.inser_estimate(twist_symbol, np.zeros(6))
-                # ### less dirty hack
-                if landmark.initial_symbol == landmark.symbol - 1:
-                    bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, self.settings.velocity_prior_sigma)
-                    self.isam_wrapper.add_factor(gtsam.PriorFactorVector(twist_symbol, np.zeros(6), bogus_noise))
+
                 self.all_factors_count += 1
 
 
@@ -388,12 +313,12 @@ class SAM:
 
     def update_fls(self):  # call after each change of camera pose
         self.isam_wrapper.update()
-        if self.current_frame % self.settings.chunk_size == self.settings.chunk_size-1:
+        if self.current_frame % self.chunk_size == self.chunk_size-1:
             self.isam_wrapper.swap_chunks(self.detected_landmarks)
         for label in list(self.detected_landmarks):
             for idx in reversed(range(len(self.detected_landmarks[label]))):
                 landmark = self.detected_landmarks[label][idx]
-                if (self.current_frame - landmark.last_seen_frame) > self.settings.window_size:
+                if (self.current_frame - landmark.last_seen_frame) > self.window_size:
                     del self.detected_landmarks[label][idx]
             if len(self.detected_landmarks[label]) == 0:
                 del self.detected_landmarks[label]
@@ -413,7 +338,7 @@ class SAM:
             ret[object_name] = []
             for landmark in self.detected_landmarks[object_name]:
                 Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
-                landmark_valid = landmark.is_valid(self.current_frame, Q)
+                landmark_valid = landmark.is_valid(self.current_frame, Q, self.t_validity_treshold, self.R_validity_treshold)
                 # if landmark.is_valid(self.current_frame, Q):
                 if current_T_bc is None:
                     T_bc: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(self.camera_landmark.symbol)
@@ -422,7 +347,8 @@ class SAM:
                 T_bo: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
                 if timestamp is not None and landmark.initial_symbol != landmark.symbol:
                     dt = timestamp - self.current_time_stamp
-                    nu12 = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
+                    # nu12 = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
+                    nu12 = np.zeros(6)
                     T_bb = gtsam.Pose3.Expmap(nu12*dt)
                 else:
                     T_bb = gtsam.Pose3.Identity()
@@ -436,18 +362,12 @@ class SAM:
         for object_name in self.detected_landmarks:
             object_entries = []
             for landmark in self.detected_landmarks[object_name]:
-                Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
-                landmark_valid = landmark.is_valid(self.current_frame, Q)
                 entry = {}
+                # cov = marginals.marginalCovariance(landmark.symbol)
+                cov = self.isam_wrapper.current_estimate.marginalCovariance(landmark.symbol)
                 T:gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
-                entry['T_bo'] = T.matrix()
-                entry['Q'] = Q
-                entry['valid'] = landmark_valid
-                entry['id'] = landmark.initial_symbol
-                if (landmark.symbol > landmark.initial_symbol):
-                    entry['nu'] = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
-                else:
-                    entry['nu'] = np.zeros(6)
+                entry['T'] = T.matrix()
+                entry['Q'] = cov
                 object_entries.append(entry)
             ret[object_name] = object_entries
         return ret
