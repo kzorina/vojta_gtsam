@@ -34,9 +34,9 @@ def __export_json(data, path):
 def main():
     DATASETS_DIR = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "hopeVideo"
-    DATASET_NAME = "SynthStatic"
+    # DATASET_NAME = "SynthStatic"
     # DATASET_NAME = "SynthStaticDummy"
-    # DATASET_NAME = "SynthDynamicOcclusion"
+    DATASET_NAME = "SynthDynamicOcclusion"
     # DATASET_NAME = "SynthDynamic"
     dataset_path = DATASETS_DIR / DATASET_NAME
     scene_names = sorted(os.listdir(DATASETS_DIR / DATASET_NAME / "test"))

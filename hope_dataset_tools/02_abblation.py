@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # for file_name in ["abblation_synth_hope_static", "abblation_hope_video"]:
 for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     # data = pd.read_csv(Path(__file__).parent / "abblation" / f"{file_name}.csv")
-    data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/hope_dataset_tools/ablation_synth_hope_dynamic_occlusion_3.csv", sep='\t')
+    data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/hope_dataset_tools/ablation_synth_hope_dynamic_occlusion_4.csv", sep='\t')
     data = data.rename(
         columns={
             "window_size": "ws",
@@ -38,6 +38,7 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     outliers = np.unique(data_sam["outlier"])
     translations = np.unique(data_sam["translation"])
     rotations = np.unique(data_sam["rotation"])
+    window_sizes = np.unique(data_sam["ws"])
 
     # plot outlier vs recal/precission for all thresholds
     fig, ax = plt.subplots(
@@ -106,32 +107,34 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     fig, ax = plt.subplots(
         1, 1, squeeze=True, figsize=(2 * 6.4, 4.8)
     )  # type: plt.Figure, plt.Axes
-    for outlier in outliers:
-        for t in translations:
-            d = data_sam[
-                (data_sam["outlier"] == outlier) & (data_sam["translation"] == t)
-            ]
-            d = d.sort_values(by=["recall"])
-            # d = data_sam[data_sam["outlier"] == outlier]
-            ax.plot(
-                d.precision,
-                d.recall,
-                "-o",
-                label=rf"$\tau_\text{{outlier}}={outlier}, \tau_\text{{pred\_t}}={t}$",
-            )
+
+    # for outlier in outliers:
+    for ws in window_sizes:
+        # for t in translations:
+        # d = data_sam[(data_sam["outlier"] == outlier) & (data_sam["translation"] == t)]
+        d = data_sam[(data_sam["ws"] == ws)]
+        d = d.sort_values(by=["recall"])
+        # d = data_sam[data_sam["outlier"] == outlier]
+        ax.plot(
+            d.precision,
+            d.recall,
+            "-o",
+            # label=rf"$\tau_\text{{outlier}}={outlier}, \tau_\text{{pred\_t}}={t}$",
+            label=f"window_size={int(float(ws))}",
+        )
     ax.plot(data_cosypose.precision, data_cosypose.recall, "x", label="CosyPose", ms=10)
 
     ax.set_ylabel("Recall")
     ax.set_xlabel("Precision")
     ax.set_xlim(0.5,1)
     ax.axes.set_aspect("equal")
-    # ax.legend(
-    #     loc="upper center",
-    #     bbox_to_anchor=(0.5, 1.25),
-    #     ncol=4,
-    #     fancybox=True,
-    #     shadow=True,
-    # )
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.25),
+        ncol=4,
+        fancybox=True,
+        shadow=True,
+    )
     fig.subplots_adjust(top=0.8)
     fig.savefig(f"{file_name}.png")
     plt.grid()

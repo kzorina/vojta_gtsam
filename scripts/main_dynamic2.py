@@ -5,7 +5,7 @@ import cv2
 # from SAM_incremental_fixed_lag_smoother import SAM
 # from SAM_isam2 import SAM
 # from SAM_dynamic import SAM
-from SAM_dynamic_swap import SAM, SAMSettings
+from SAM_dynamic2 import SAM, SAMSettings
 import pickle
 from compare_gt_predictions2 import plot_split_results
 import time
@@ -249,38 +249,42 @@ if __name__ == "__main__":
 
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
-    datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    # datasets = [0, 1, 2]
+    # datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    datasets = [0, 1, 2]
     # datasets = [0]
     __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
     pool = multiprocessing.Pool(processes=15)
 
-    for ws in [20]:
+    # for ws in [2, 5, 10, 20]:
+    for ws in [10]:
         for ort in [10]:
-            for tvt, Rvt in [(0.0000025, 0.001), (0.000005, 0.002)]:
-            #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
-                for cov_drift_lin_vel in [1]:
-                    # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
-                    for cov_drift_ang_vel in [1]:
-                        for cov2_t in [0.00000000001]:
-                            for cov2_R in [0.00000000001]:
-                            # for hyster in [25, 200, 800]:
-                                for hyster in [1]:
-                                    sam_settings = SAMSettings(window_size=ws,
-                                                               cov_drift_lin_vel=cov_drift_lin_vel,
-                                                               cov_drift_ang_vel=cov_drift_ang_vel,
-                                                               cov2_t=cov2_t,
-                                                               cov2_R=cov2_R,
-                                                               outlier_rejection_treshold=ort,
-                                                               t_validity_treshold=tvt,
-                                                               R_validity_treshold=Rvt,
-                                                               hysteresis_coef=hyster,
-                                                               velocity_prior_sigma=10)
-                                    print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
-                                    output_name = f'gtsam_{DATASET_NAME}-test_{str(sam_settings)}_.csv'
+            # for tvt in [0.0000025, 0.000005, 0.00001]:
+            for tvt in [0.00002]:
+                # for Rvt in [0.0005, 0.001, 0.002]:
+                for Rvt in [0.00125, 0.0015, 0.00175]:
+                #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
+                    for cov_drift_lin_vel in [1]:
+                        # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
+                        for cov_drift_ang_vel in [1]:
+                            for cov2_t in [0.000000001]:
+                                for cov2_R in [0.000000001]:
+                                # for hyster in [25, 200, 800]:
+                                    for hyster in [1]:
+                                        sam_settings = SAMSettings(window_size=ws,
+                                                                   cov_drift_lin_vel=cov_drift_lin_vel,
+                                                                   cov_drift_ang_vel=cov_drift_ang_vel,
+                                                                   cov2_t=cov2_t,
+                                                                   cov2_R=cov2_R,
+                                                                   outlier_rejection_treshold=ort,
+                                                                   t_validity_treshold=tvt,
+                                                                   R_validity_treshold=Rvt,
+                                                                   hysteresis_coef=hyster,
+                                                                   velocity_prior_sigma=10)
+                                        print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
+                                        output_name = f'gtsam_{DATASET_NAME}-test_{str(sam_settings)}_.csv'
 
-                                    pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
-                                    # anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
+                                        # pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
+                                        anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
     pool.close()
     pool.join()
 
