@@ -7,6 +7,8 @@ import os
 import copy
 import pinocchio as pin
 from collections import defaultdict
+import shutil
+import bop_tools
 
 def load_data(path: Path):
     with open(path, 'rb') as file:
@@ -46,7 +48,7 @@ def determine_assignment(D):
     assignment = []
     for i in range(D.shape[1]):
         argmin = np.argmin(D[:,i])
-        if argmin < 10000:
+        if argmin < 0.2:
             # minimum = D[:,i][argmin]
             D[argmin, :] = np.full((D.shape[1]), np.inf)
             assignment.append(argmin)
@@ -135,8 +137,18 @@ def cosypose_mod(DATASET_PATH, DATASET_NAME, mod):
         print(f"\r({(i + 1)}/{len(images)})", end='')
 
     print("")
-    with open(dataset_path / f'frames_prediction_mod{mod}.p', 'wb') as file:
+    with open(dataset_path / f'frames_refined_prediction.p', 'wb') as file:
         pickle.dump(inference, file)
+    return inference
+
+def __refresh_dir(path):
+    """
+    Wipes a directory and all its content if it exists. Creates a new empty one.
+    :param path:
+    """
+    if os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=False, onerror=None)
+    os.makedirs(path)
 
 def main():
     start_time = time.time()
@@ -146,12 +158,17 @@ def main():
     DATASET_NAME = "SynthDynamicOcclusion"
     # DATASET_NAME = "SynthDynamic"
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
+    __refresh_dir(DATASET_PATH / "ablation")
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
-    datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    # datasets = [0, 1, 2]
+    # datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    datasets = [0, 1, 2]
     # datasets = [0]
-    for dataset_num in datasets:
-        cosypose_mod(DATASET_PATH, dataset_num, mod=6)
+    for mod in [2, 4, 6, 8, 10]:
+        results = {}
+        for dataset_num in datasets:
+            results[dataset_num] = cosypose_mod(DATASET_PATH, dataset_num, mod=mod)
+        output_name = f'mod_{DATASET_NAME}-test_{mod}_.csv'
+        bop_tools.export_bop(bop_tools.convert_frames_to_bop(results, dataset_type), DATASET_PATH / "ablation" / output_name)
     # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

@@ -61,6 +61,7 @@ class Landmark:
 
 @dataclass
 class SAMSettings:
+    mod: int = 1
     cov_drift_lin_vel: float = 0.1
     cov_drift_ang_vel: float = 0.1
     cov2_t: float = 0.0001

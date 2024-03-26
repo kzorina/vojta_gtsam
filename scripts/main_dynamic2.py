@@ -169,7 +169,7 @@ def refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, sam_settings):
 
             idx = a*len(images) + i
             start_time = time.time()
-            if i % 1 == 0:
+            if i % sam_settings.mod == 0:
             # if i % 6 == 0:
                 sam.insert_odometry_measurements()
                 sam.insert_T_bc_detection(np.linalg.inv(frames_gt[i]['T_cw']), timestamp=i/30)
@@ -208,6 +208,7 @@ def anotate_dataset_parallel_safe(dataset_name, DATASETS_PATH, datasets, sam_set
         result = refine_ycbv_inference(DATASETS_PATH, DATASET_NAME, sam_settings)
         results[DATASET_NAME] = result
     export_bop(convert_frames_to_bop(results, dataset_name), DATASETS_PATH / "ablation" / output_name)
+    print(f"saving results to: {DATASETS_PATH / 'ablation' / output_name}")
 
 
 def annotate_dataset_multithreaded(DATASETS_PATH, datasets, cov1, cov2, ort, tvt, Rvt):
@@ -230,6 +231,7 @@ def merge_inferences(DATASETS_PATH, datasets, merge_from="frames_prediction.p", 
         result = load_data(dataset_path/merge_from)
         results[DATASET_NAME] = result
     export_bop(convert_frames_to_bop(results, dataset_name), DATASETS_PATH / merge_to)
+
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -256,35 +258,37 @@ if __name__ == "__main__":
     pool = multiprocessing.Pool(processes=15)
 
     # for ws in [2, 5, 10, 20]:
-    for ws in [10]:
-        for ort in [10]:
-            # for tvt in [0.0000025, 0.000005, 0.00001]:
-            for tvt in [0.00002]:
-                # for Rvt in [0.0005, 0.001, 0.002]:
-                for Rvt in [0.00125, 0.0015, 0.00175]:
-                #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
-                    for cov_drift_lin_vel in [1]:
-                        # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
-                        for cov_drift_ang_vel in [1]:
-                            for cov2_t in [0.000000001]:
-                                for cov2_R in [0.000000001]:
-                                # for hyster in [25, 200, 800]:
-                                    for hyster in [1]:
-                                        sam_settings = SAMSettings(window_size=ws,
-                                                                   cov_drift_lin_vel=cov_drift_lin_vel,
-                                                                   cov_drift_ang_vel=cov_drift_ang_vel,
-                                                                   cov2_t=cov2_t,
-                                                                   cov2_R=cov2_R,
-                                                                   outlier_rejection_treshold=ort,
-                                                                   t_validity_treshold=tvt,
-                                                                   R_validity_treshold=Rvt,
-                                                                   hysteresis_coef=hyster,
-                                                                   velocity_prior_sigma=10)
-                                        print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
-                                        output_name = f'gtsam_{DATASET_NAME}-test_{str(sam_settings)}_.csv'
+    for mod in [2, 4, 6, 8, 10]:
+        for ws in [20]:
+            for ort in [10]:
+                # for tvt in [0.0000025, 0.000005, 0.00001]:
+                for tvt in [0.000025]:
+                    for Rvt in [0.001]:
+                    # for Rvt in [0.00125, 0.0015, 0.00175]:
+                    #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
+                        for cov_drift_lin_vel in [1]:
+                            # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
+                            for cov_drift_ang_vel in [1]:
+                                for cov2_t in [0.000000001]:
+                                    for cov2_R in [0.000000001]:
+                                    # for hyster in [25, 200, 800]:
+                                        for hyster in [1]:
+                                            sam_settings = SAMSettings(mod=mod,
+                                                                       window_size=ws,
+                                                                       cov_drift_lin_vel=cov_drift_lin_vel,
+                                                                       cov_drift_ang_vel=cov_drift_ang_vel,
+                                                                       cov2_t=cov2_t,
+                                                                       cov2_R=cov2_R,
+                                                                       outlier_rejection_treshold=ort,
+                                                                       t_validity_treshold=tvt,
+                                                                       R_validity_treshold=Rvt,
+                                                                       hysteresis_coef=hyster,
+                                                                       velocity_prior_sigma=10)
+                                            print(f"{mod},{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
+                                            output_name = f'gtsam_{DATASET_NAME}-test_{mod}_{str(sam_settings)}_.csv'
 
-                                        # pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
-                                        anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
+                                            # pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
+                                            anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
     pool.close()
     pool.join()
 

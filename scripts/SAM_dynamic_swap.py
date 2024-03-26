@@ -46,17 +46,18 @@ class Landmark:
         self.chain_start = cut
         return ret
 
-    def is_valid(self, current_frame, Q):
+    def is_valid(self, dt, Q):
         R_det = np.linalg.det(Q[:3, :3]) ** 0.5
         t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
-
+        weight = dt * 30
+        # elapsed_frames = 1
         if self.hysteresis_active:
-            if t_det < self.settings.t_validity_treshold * self.settings.hysteresis_coef and R_det < self.settings.R_validity_treshold * self.settings.hysteresis_coef:
+            if t_det < self.settings.t_validity_treshold * self.settings.hysteresis_coef * weight and R_det < self.settings.R_validity_treshold * self.settings.hysteresis_coef * weight:
                 return True
             else:
                 self.hysteresis_active = False
                 return False
-        if t_det < self.settings.t_validity_treshold and R_det < self.settings.R_validity_treshold:
+        if t_det < self.settings.t_validity_treshold * weight and R_det < self.settings.R_validity_treshold * weight:
             self.hysteresis_active = True
             return True
         return False
@@ -133,6 +134,8 @@ class ISAM2_wrapper:
 
 @dataclass
 class SAMSettings:
+    translation_dist_weight: float = 1.0
+    mod: int = 1
     cov_drift_lin_vel: float = 0.1
     cov_drift_ang_vel: float = 0.1
     cov2_t: float = 0.0001
@@ -147,7 +150,8 @@ class SAMSettings:
     hysteresis_coef:float = 1
 
     def __repr__(self):
-        return f"{self.window_size}_" \
+        return f"{self.mod}_" \
+               f"{self.window_size}_" \
                f"{self.hysteresis_coef}_" \
                f"{self.cov_drift_lin_vel}_" \
                f"{self.cov_drift_ang_vel}_" \
@@ -291,6 +295,7 @@ class SAM:
                 Q_nn = noises[j]
                 T_on = T_bo_s[i].transformPoseTo(T_bc.transformPoseFrom(gtsam.Pose3(T_cn_s[j])))
                 w = gtsam.Pose3.Logmap(T_on.inverse())
+                w[3:6] = w[3:6] * self.settings.translation_dist_weight
                 D[i, j] = mahalanobis_distance(w, Q_nn.covariance())
         return D
 
@@ -301,6 +306,8 @@ class SAM:
         for i in range(D.shape[1]):
             argmin = np.argmin(padded_D[:, i])
             minimum = padded_D[:, i][argmin]
+            # if minimum < self.settings.outlier_rejection_treshold * self.get_dt() * 30:
+            # if minimum < self.settings.outlier_rejection_treshold + (self.get_dt() * 30 - 1)*3:
             if minimum < self.settings.outlier_rejection_treshold:
                 assignment[i] = argmin
             padded_D[argmin, :] = np.full((padded_D.shape[1]), np.inf)
@@ -413,20 +420,20 @@ class SAM:
             ret[object_name] = []
             for landmark in self.detected_landmarks[object_name]:
                 Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
-                landmark_valid = landmark.is_valid(self.current_frame, Q)
+                landmark_valid = landmark.is_valid(self.get_dt(), Q)
                 # if landmark.is_valid(self.current_frame, Q):
                 if current_T_bc is None:
                     T_bc: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(self.camera_landmark.symbol)
                 else:
                     T_bc: gtsam.Pose3 = gtsam.Pose3(current_T_bc)
-                T_bo: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
+                T_bo_0: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
                 if timestamp is not None and landmark.initial_symbol != landmark.symbol:
                     dt = timestamp - self.current_time_stamp
                     nu12 = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
-                    T_bb = gtsam.Pose3.Expmap(nu12*dt)
+                    T_bo = self.extrapolate_T_bo(T_bo_0, nu12, dt)
                 else:
-                    T_bb = gtsam.Pose3.Identity()
-                T_co = (T_bc.inverse().compose(T_bb).compose(T_bo)).matrix()
+                    T_bo = T_bo_0
+                T_co = (T_bc.inverse().compose(T_bo)).matrix()
                 ret[object_name].append({"T_co":T_co, "id":landmark.initial_symbol,"Q":Q, "valid":landmark_valid}, )
         return ret
 
@@ -437,7 +444,7 @@ class SAM:
             object_entries = []
             for landmark in self.detected_landmarks[object_name]:
                 Q = self.isam_wrapper.marginalCovariance(landmark.symbol)
-                landmark_valid = landmark.is_valid(self.current_frame, Q)
+                landmark_valid = landmark.is_valid(self.get_dt(), Q)
                 entry = {}
                 T:gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
                 entry['T_bo'] = T.matrix()

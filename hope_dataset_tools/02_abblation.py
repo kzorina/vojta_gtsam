@@ -115,12 +115,16 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
         d = data_sam[(data_sam["ws"] == ws)]
         d = d.sort_values(by=["recall"])
         # d = data_sam[data_sam["outlier"] == outlier]
+        if ws.isnumeric():
+            value = int(float(ws))
+        else:
+            value = ws
         ax.plot(
             d.precision,
             d.recall,
             "-o",
             # label=rf"$\tau_\text{{outlier}}={outlier}, \tau_\text{{pred\_t}}={t}$",
-            label=f"window_size={int(float(ws))}",
+            label=f"window_size={value}",
         )
     ax.plot(data_cosypose.precision, data_cosypose.recall, "x", label="CosyPose", ms=10)
 
