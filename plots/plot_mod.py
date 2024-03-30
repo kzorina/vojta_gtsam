@@ -7,7 +7,7 @@ import pandas as pd
 
 
 def main():
-    data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/plots/mod_data.csv", sep=',')
+    data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/plots/mod_data2.csv", sep=',')
     data = data.sort_values(by=["modulo"])
     fig, ax = plt.subplots(2, 1)
     zero = data[data["method"] == "zero_velocity_cosypose"]

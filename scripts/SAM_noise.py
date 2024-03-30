@@ -95,6 +95,8 @@ class SAM_noise():
         :param f: camera focal length in meters
         """
         C_oo = measurement_covariance(T_co, px_count)
+        C_oo = C_oo
+        #  TODO:change this back ASAP
         noise = gtsam.noiseModel.Gaussian.Covariance(C_oo)
         return noise
 

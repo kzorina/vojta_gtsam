@@ -21,7 +21,7 @@ from utils import (
 
 DATASET_ROOT = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
 
-ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000002"
+ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000000"
 # ds_path = DATASET_ROOT / "SynthStatic" / "test" / "000000"
 
 frames_refined_prediction = pickle.load(open(ds_path / "frames_refined_prediction.p", "rb"))

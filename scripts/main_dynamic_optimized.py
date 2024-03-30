@@ -6,6 +6,7 @@ import cv2
 # from SAM_isam2 import SAM
 # from SAM_dynamic import SAM
 from SAM_dynamic_swap import SAM, SAMSettings
+from SAM_dynamic_optimized import SAM, SAMSettings
 import pickle
 from compare_gt_predictions2 import plot_split_results
 import time
@@ -258,7 +259,7 @@ if __name__ == "__main__":
     for mod in [1]:
     # for mod in [10]:
         for ws in [20]:
-            for ort in [5]:
+            for ort in [1, 2, 3]:
                 for tvt, Rvt in [(0.725, 0.95)]:
                 # for tvt, Rvt in [(0.000005, 0.0005)]:
                 #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
@@ -269,7 +270,7 @@ if __name__ == "__main__":
                                 for cov2_R in [0.0000000001]:
                                 # for hyster in [25, 200, 800]:
                                     for hyster in [1.0]:
-                                        for tdw in [0.2]:
+                                        for tdw in [0.2, 0.4, 0.6]:
                                             sam_settings = SAMSettings(translation_dist_weight=tdw,
                                                                        mod=mod,
                                                                        window_size=ws,
@@ -285,8 +286,8 @@ if __name__ == "__main__":
                                             print(f"{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
                                             output_name = f'gtsam_{DATASET_NAME}-test_{str(sam_settings)}_.csv'
 
-                                            # pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
-                                            anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
+                                            pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
+                                            # anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
     pool.close()
     pool.join()
 
