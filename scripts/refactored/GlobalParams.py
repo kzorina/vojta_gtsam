@@ -3,18 +3,18 @@ from dataclasses import dataclass
 class GlobalParams:
     translation_dist_weight: float = 1.0
     mod: int = 1
-    cov_drift_lin_vel: float = 0.1
-    cov_drift_ang_vel: float = 0.1
-    cov2_t: float = 0.0001
-    cov2_R: float = 0.0001
+    cov_drift_lin_vel: float = 0.2
+    cov_drift_ang_vel: float = 1.0
+    cov2_t: float = 0.000000001
+    cov2_R: float = 0.000000001
     t_validity_treshold: float = 0.00001
-    R_validity_treshold: float = 0.0002
-    max_track_age: int = 1.0
+    R_validity_treshold: float = 0.001
+    max_track_age: int = 2.0  # in seconds
     chunk_size: int = 20
     outlier_rejection_treshold: float = 10
     velocity_prior_sigma: float = 10
-    velocity_diminishing_coef:float = 0.99
-    hysteresis_coef:float = 1
+    velocity_diminishing_coef: float = 0.99
+    hysteresis_coef: float = 1
 
     def __repr__(self):
         return f"{self.mod}_" \

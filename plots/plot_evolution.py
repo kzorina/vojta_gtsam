@@ -72,7 +72,6 @@ for obj_label in all_object_labels:
 
         mask = mask_predicted
 
-        print(int(track_id))
         ax[0].plot(
             v[mask, 0],
             v[mask, 2],

@@ -1,6 +1,7 @@
 
 from TracksWrapper import Tracks, Track
 from GlobalParams import GlobalParams
+import gtsam
 
 class SamWrapper:
     def __init__(self, params:GlobalParams):
@@ -20,6 +21,18 @@ class SamWrapper:
                 ret[obj_label].append({"T_wo":T_wo, "id":idx, "Q":Q})
         return ret
 
+    def get_state_extrapolated(self, T_wc, time_stamp):
+        ret = {}
+        for obj_label in self.tracks.tracks:
+            ret[obj_label] = []
+            for track in self.tracks.tracks[obj_label]:
+                T_wo = track.get_T_wo_extrapolated(time_stamp)
+                T_co:gtsam.Pose3 = gtsam.Pose3(T_wc).inverse() * T_wo
+                Q = track.get_Q_extrapolated(time_stamp)
+                idx = track.idx
+                ret[obj_label].append({"T_co":T_co.matrix(), "id":idx, "Q":Q, "valid": track.is_valid(time_stamp)})
+        return ret
+
     def insert_detections(self, T_wc_detection, T_co_detections, time_stamp):
         self.frame += 1
         self.tracks.camera.add_detection(T_wc_detection["T_wc"], T_wc_detection["Q"], time_stamp)
@@ -36,3 +49,4 @@ class SamWrapper:
         self.tracks.factor_graph.update()
         if self.frame % self.params.chunk_size == 0:
             self.tracks.factor_graph.swap_chunks(self.tracks.tracks)
+        self.tracks.update_stamp += 1

@@ -1,8 +1,11 @@
 import json
+
+import gtsam
 import numpy as np
 from pathlib import Path
 import pickle
 import cov
+from collections import defaultdict
 
 def load_pickle(path: Path):
     with open(path, 'rb') as file:
@@ -43,3 +46,17 @@ def merge_T_cos_px_counts(T_cos, px_counts):
 
 def format_time(t):
     return f"{int(t)//3600}:{(int(t)%3600)//60}:{(t%60):.2f}"
+
+def parse_variable_index(vi:gtsam.VariableIndex):
+    entries = vi.__repr__()[:-1].split('\n')
+    factor_keyed = defaultdict(list)
+    variable_keyed = defaultdict(list)
+    for entry in entries[1:]:
+        data = entry.split(' ')[1:]
+        variable = data[0][:-1]
+        factors = data[1:]
+        variable_keyed[variable] += factors
+        for factor in factors:
+            factor_keyed[factor].append(variable)
+
+    return dict(factor_keyed), dict(variable_keyed)

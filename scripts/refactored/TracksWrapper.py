@@ -9,6 +9,7 @@ from distribution_distances import mahalanobis_distance, bhattacharyya_distance
 from collections import defaultdict
 import custom_odom_factors
 from functools import partial
+import utils
 
 class Camera:
     def __init__(self, parent):
@@ -56,7 +57,16 @@ class Track:
 
         self.cached_attributes = {"T_wo_init": [-1, None],  # init means without extrapolation
                                   "Q_init": [-1, None],
-                                  "nu": [-1, None]}
+                                  "nu_init": [-1, None]}
+
+    def is_valid(self, time_stamp):
+        Q = self.get_Q_extrapolated(time_stamp)
+        R_det = np.linalg.det(Q[:3, :3]) ** 0.5
+        t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
+        a, b = np.linalg.det(Q[:3, :3]), np.linalg.det(Q[3:6, 3:6])
+        if t_det < self.parent.params.t_validity_treshold and R_det < self.parent.params.R_validity_treshold:
+            return True
+        return False
 
     def get_symbol(self):
         symbol = L(self.parent.SYMBOL_GAP * self.idx + self.num_detected)
@@ -64,6 +74,55 @@ class Track:
     def get_nu_symbol(self):
         symbol = V(self.parent.SYMBOL_GAP * self.idx + self.num_detected)
         return symbol
+
+    def get_T_wo_init(self) -> gtsam.Pose3:
+        attribute_name = "T_wo_init"
+        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
+            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
+            self.cached_attributes[attribute_name][1] = self.parent.factor_graph.current_estimate.atPose3(self.get_symbol())
+        return self.cached_attributes[attribute_name][1]
+
+    def get_Q_init(self) -> gtsam.Pose3:
+        attribute_name = "Q_init"
+        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
+            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
+            self.cached_attributes[attribute_name][1] = self.parent.factor_graph.marginalCovariance(self.get_symbol())
+        return self.cached_attributes[attribute_name][1]
+
+    def get_nu_init(self):
+        attribute_name = "nu_init"
+        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
+            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
+            if self.num_detected >= 2:
+                self.cached_attributes[attribute_name][1] = self.parent.factor_graph.current_estimate.atVector(self.get_nu_symbol())
+            else:
+                self.cached_attributes[attribute_name][1] = np.zeros(6)
+        return self.cached_attributes[attribute_name][1]
+    def get_T_wo_extrapolated(self, time_stamp) -> gtsam.Pose3:
+        T_wo_init = self.get_T_wo_init()
+        nu = self.get_nu_init()
+        dt = time_stamp - self.last_seen_time_stamp
+        T_wo = custom_odom_factors.plus_so3r3_global(T_wo_init, nu, dt)
+        return T_wo
+
+    def get_velocity_Q(self, dt):
+        Q = np.eye(6)
+        Q[:3, :3] = np.eye(3) * self.parent.params.cov_drift_ang_vel * dt
+        Q[3:6, 3:6] = np.eye(3) * self.parent.params.cov_drift_lin_vel * dt
+        return Q
+
+    def get_Q_extrapolated(self, time_stamp):
+        Q_init = self.get_Q_init()
+        dt = time_stamp - self.last_seen_time_stamp
+        Q = Q_init + self.get_velocity_Q(dt)
+        return Q
+
+    def __repr__(self):
+        # return f"obj_label:{self.obj_label}, idx:{self.idx}, num_detected:{self.num_detected}, last_seen_time_stamp:{self.last_seen_time_stamp}"
+        return f"(Track:{self.obj_label}-{self.idx})"
+
+    def __hash__(self):
+        return self.idx
 
     def add_detection(self, T_co:gtsam.Pose3, Q, time_stamp):
         T_co = gtsam.Pose3(T_co)
@@ -88,38 +147,11 @@ class Track:
             # self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), np.zeros(6))  # TODO: use a better estimate
             self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), velocity_estimate)  # TODO: use a better estimate
         if self.num_detected >= 3:
-            cov1 = np.eye(6)
-            cov1[:3, :3] = np.eye(3) * self.parent.params.cov_drift_ang_vel * dt
-            cov1[3:6, 3:6] = np.eye(3) * self.parent.params.cov_drift_lin_vel * dt
-            velocity_noise = gtsam.noiseModel.Gaussian.Covariance(cov1)
+            velocity_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_velocity_Q(dt))
             self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_nu_symbol() - 1, self.get_nu_symbol(), np.zeros(6), velocity_noise))
         self.last_seen_time_stamp = time_stamp
         self.parent.last_time_stamp = time_stamp
 
-
-    def get_T_wo_init(self) -> gtsam.Pose3:
-        attribute_name = "T_wo_init"
-        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
-            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
-            self.cached_attributes[attribute_name][1] = self.parent.factor_graph.current_estimate.atPose3(self.get_symbol())
-        return self.cached_attributes[attribute_name][1]
-
-    def get_Q_init(self) -> gtsam.Pose3:
-        attribute_name = "Q_init"
-        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
-            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
-            self.cached_attributes[attribute_name][1] = self.parent.factor_graph.marginalCovariance(self.get_symbol())
-        return self.cached_attributes[attribute_name][1]
-
-    def get_T_wo_update(self) -> gtsam.Pose3:
-        T_wo_init = self.get_T_wo_init()
-        nu = 
-
-    def __repr__(self):
-        return f"obj_label:{self.obj_label}, idx:{self.idx}, num_detected:{self.num_detected}, last_seen_time_stamp:{self.last_seen_time_stamp}"
-
-    def __hash__(self):
-        return self.idx
 
 class Tracks:
     def __init__(self, params:GlobalParams):
@@ -140,8 +172,9 @@ class Tracks:
                 if (self.last_time_stamp - track.last_seen_time_stamp) > self.params.max_track_age:
                     self.tracks[obj_label].remove(track)
                     del track
+
     def create_track(self, obj_label):
-        new_track = Track(self, self.created_tracks, obj_label)
+        new_track = Track(self, self.created_tracks + 1, obj_label)
         self.created_tracks += 1
         self.tracks[obj_label].add(new_track)
         return new_track
@@ -171,7 +204,6 @@ class Tracks:
         for i in range(min(D.shape[0], D.shape[1])):
             arg_min = np.unravel_index(np.argmin(D, axis=None), D.shape)
             minimum = D[arg_min]
-            assignment[i] = tracks[arg_min[0]]
             D[arg_min[0], :] = np.full((D.shape[1]), np.inf)
             D[:, arg_min[1]] = np.full((D.shape[0]), np.inf)
             if minimum < self.params.outlier_rejection_treshold:
