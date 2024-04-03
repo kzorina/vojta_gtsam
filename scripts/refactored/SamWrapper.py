@@ -30,7 +30,7 @@ class SamWrapper:
                 T_co:gtsam.Pose3 = gtsam.Pose3(T_wc).inverse() * T_wo
                 Q = track.get_Q_extrapolated(time_stamp)
                 idx = track.idx
-                ret[obj_label].append({"T_co":T_co.matrix(), "id":idx, "Q":Q, "valid": track.is_valid(time_stamp)})
+                ret[obj_label].append({"T_co":T_co.matrix(), "id":idx, "Q":Q, "valid": track.is_valid(time_stamp), "T_wc":T_wc})
         return ret
 
     def insert_detections(self, T_wc_detection, T_co_detections, time_stamp):

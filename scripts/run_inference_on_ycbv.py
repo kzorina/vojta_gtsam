@@ -313,8 +313,9 @@ def run_inference(dataset_dir: Path, CosyPose, object_dataset) -> None:
               end='')
 
     print(f"\nruntime: {(time.time() - start_time):.2f}s for {len(img_names)} images")
-    save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
-    save_preditions_data(dataset_dir/"frames_px_counts.p", all_px_counts)
+    print("PREDICTIONS NOT SAVED!!! REMOVE A COMMENT!!!")
+    # save_preditions_data(dataset_dir/"frames_prediction.p", all_predictions)
+    # save_preditions_data(dataset_dir/"frames_px_counts.p", all_px_counts)
     # export_bop(convert_frames_to_bop({DATASET_NAME: all_predictions}), dataset_dir / 'frames_prediction.csv')
 
 

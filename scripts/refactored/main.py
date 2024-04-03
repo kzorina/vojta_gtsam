@@ -8,7 +8,8 @@ import utils
 from utils import load_scene_camera, load_pickle, merge_T_cos_px_counts
 from SamWrapper import SamWrapper
 from GlobalParams import GlobalParams
-from Vizualization_tools import display_factor_graph
+from Vizualization_tools import display_factor_graph, animate_refinement
+
 
 
 def is_valid(Q, t_validity_treshold, R_validity_treshold):
@@ -43,8 +44,8 @@ def refine_scene(scene_camera, frames_prediction, px_counts, params:GlobalParams
         sam.insert_detections({"T_wc":T_wc, "Q":Q_T_wc}, detections, time_stamp)
         current_state = sam.get_state_extrapolated(T_wc, time_stamp)
         refined_scene.append(current_state)
-        display_factor_graph(*utils.parse_variable_index(sam.tracks.factor_graph.isams[sam.tracks.factor_graph.active_chunk].getVariableIndex()))
-        time.sleep(1)
+        # display_factor_graph(*utils.parse_variable_index(sam.tracks.factor_graph.isams[sam.tracks.factor_graph.active_chunk].getVariableIndex()))
+        # time.sleep(1)
         print(f"\r({(i + 1)}/{len(scene_camera)})", end='')
     return refined_scene
 
@@ -55,6 +56,7 @@ def refine_dataset(DATASETS_PATH, DATASET_NAME, scenes, params):
         frames_prediction = load_pickle(scene_path / "frames_prediction.p")
         px_counts = load_pickle(scene_path / "frames_px_counts.p")
         refined_scene = refine_scene(scene_camera, frames_prediction, px_counts, params)
+        # animate_refinement(refined_scene)
         recalculated_refined_scene = recalculate_validity(refined_scene, params.t_validity_treshold, params.R_validity_treshold)
         with open(scene_path / 'frames_refined_prediction.p', 'wb') as file:
             pickle.dump(refined_scene, file)
@@ -68,7 +70,14 @@ def main():
     # scenes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     scenes = [0]
     params = GlobalParams()
-    refine_dataset(DATASETS_PATH, DATASET_NAME, scenes, params)
+
+    # refine_dataset(DATASETS_PATH, DATASET_NAME, scenes, params)
+
+    refined_scene = load_pickle(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'frames_refined_prediction.p')
+    scene_gt = utils.load_scene_gt(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'scene_gt.json', list(utils.HOPE_OBJECT_NAMES.values()))
+    scene_camera = load_scene_camera(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}" / "scene_camera.json")
+    animate_refinement(refined_scene, scene_gt, scene_camera)
+
     print(f"elapsed time: {time.time() - start_time:.2f}s")
     print(f"elapsed time: {utils.format_time(time.time() - start_time)}")
 

@@ -3,11 +3,11 @@ from dataclasses import dataclass
 class GlobalParams:
     translation_dist_weight: float = 1.0
     mod: int = 1
-    cov_drift_lin_vel: float = 0.2
-    cov_drift_ang_vel: float = 1.0
+    cov_drift_lin_vel: float = 0.01
+    cov_drift_ang_vel: float = 0.01
     cov2_t: float = 0.000000001
     cov2_R: float = 0.000000001
-    t_validity_treshold: float = 0.00001
+    t_validity_treshold: float = 0.000005
     R_validity_treshold: float = 0.001
     max_track_age: int = 2.0  # in seconds
     chunk_size: int = 20

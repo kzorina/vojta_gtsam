@@ -7,6 +7,67 @@ import pickle
 import cov
 from collections import defaultdict
 
+HOPE_OBJECT_NAMES = {
+    "obj_000001": "AlphabetSoup",
+    "obj_000002": "BBQSauce",
+    "obj_000003": "Butter",
+    "obj_000004": "Cherries",
+    "obj_000005": "ChocolatePudding",
+    "obj_000006": "Cookies",
+    "obj_000007": "Corn",
+    "obj_000008": "CreamCheese",
+    "obj_000009": "GranolaBars",
+    "obj_000010": "GreenBeans",
+    "obj_000011": "Ketchup",
+    "obj_000012": "MacaroniAndCheese",
+    "obj_000013": "Mayo",
+    "obj_000014": "Milk",
+    "obj_000015": "Mushrooms",
+    "obj_000016": "Mustard",
+    "obj_000017": "OrangeJuice",
+    "obj_000018": "Parmesan",
+    "obj_000019": "Peaches",
+    "obj_000020": "PeasAndCarrots",
+    "obj_000021": "Pineapple",
+    "obj_000022": "Popcorn",
+    "obj_000023": "Raisins",
+    "obj_000024": "SaladDressing",
+    "obj_000025": "Spaghetti",
+    "obj_000026": "TomatoSauce",
+    "obj_000027": "Tuna",
+    "obj_000028": "Yogurt",
+}
+OBJ_IDS = {
+    "AlphabetSoup": 1,
+    "BBQSauce": 2,
+    "Butter": 3,
+    "Cherries": 4,
+    "ChocolatePudding": 5,
+    "Cookies": 6,
+    "Corn": 7,
+    "CreamCheese": 8,
+    "GranolaBars": 9,
+    "GreenBeans": 10,
+    "Ketchup": 11,
+    "MacaroniAndCheese": 12,
+    "Mayo": 13,
+    "Milk": 14,
+    "Mushrooms": 15,
+    "Mustard": 16,
+    "OrangeJuice": 17,
+    "Parmesan": 18,
+    "Peaches": 19,
+    "PeasAndCarrots": 20,
+    "Pineapple": 21,
+    "Popcorn": 22,
+    "Raisins": 23,
+    "SaladDressing": 24,
+    "Spaghetti": 25,
+    "TomatoSauce": 26,
+    "Tuna": 27,
+    "Yogurt": 28,
+}
+
 def load_pickle(path: Path):
     with open(path, 'rb') as file:
         data = pickle.load(file)
@@ -29,6 +90,24 @@ def load_scene_camera(path):
         T_cw[:3, 3] = np.array(data[str(i+1)]["cam_t_w2c"])/1000
         T_cw[3, 3] = 1
         entry["T_cw"] = T_cw
+        parsed_data.append(entry)
+    return parsed_data
+
+def load_scene_gt(path, label_list=None):
+    with open(path) as json_file:
+        data: dict = json.load(json_file)
+    parsed_data = []
+    for i in range(len(data)):
+        entry = defaultdict(lambda: [])
+        frame = i + 1
+        for object in data[str(frame)]:
+            T_cm = np.zeros((4, 4))
+            T_cm[:3, :3] = np.array(object["cam_R_m2c"]).reshape((3, 3))
+            T_cm[:3, :3] = T_cm[:3, :3]
+            T_cm[:3, 3] = np.array(object["cam_t_m2c"]) / 1000
+            T_cm[3, 3] = 1
+            obj_id = object["obj_id"]
+            entry[label_list[obj_id - 1]].append(T_cm)
         parsed_data.append(entry)
     return parsed_data
 
