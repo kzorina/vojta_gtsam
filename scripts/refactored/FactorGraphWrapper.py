@@ -10,7 +10,7 @@ class FactorGraphWrapper:
         self.active_chunk = 0
         self.parameters = gtsam.ISAM2Params()
         self.parameters.setRelinearizeThreshold(0.1)
-        self.parameters.relinearizeSkip = 1
+        # self.parameters.relinearizeSkip = 1
         self.isams = []
         self.initial_estimate = gtsam.Values()
         self.current_estimate = None

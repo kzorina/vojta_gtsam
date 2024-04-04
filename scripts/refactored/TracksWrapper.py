@@ -166,12 +166,13 @@ class Tracks:
         self.SYMBOL_GAP = 10 ** 6
 
 
-    def remove_expired_tracks(self):
+    def remove_expired_tracks(self, current_time_stamp):
         for obj_label in self.tracks:
             for track in list(self.tracks[obj_label]):
-                if (self.last_time_stamp - track.last_seen_time_stamp) > self.params.max_track_age:
+                if (current_time_stamp - track.last_seen_time_stamp) > self.params.max_track_age:
                     self.tracks[obj_label].remove(track)
                     del track
+
 
     def create_track(self, obj_label):
         new_track = Track(self, self.created_tracks + 1, obj_label)
