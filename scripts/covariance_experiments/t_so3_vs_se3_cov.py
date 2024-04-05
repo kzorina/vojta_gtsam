@@ -9,6 +9,8 @@ def random_cov(dim=6):
     A = np.random.rand(dim, dim)
     sig = 0.3  # meters and radians
     Q = sig**2*np.dot(A, A.T)
+    Q[3:6, :3] = 0
+    Q[:3, 3:6] = 0
     return Q
 
 def sample_se3(T: pin.SE3, Q: np.ndarray):
@@ -41,18 +43,18 @@ def get_Qs():
 
 
     # Verify numerically (Monte-Carlo)
-    N_samples = int(2e5)  # no difference above
+    N_samples = int(2e4)  # no difference above
     nu_wb_arr = np.zeros((N_samples,6))
     print(f'Monte Carlo Sampling N_samples={N_samples}')
     for i in range(N_samples):
-        if i % 1e4 == 0:
+        if i % 4e4 == 0:
             print(f'{100*(i/N_samples)} %')
         T_n = sample_se3(T, Q)
         nu_wb = pin.log6(T_n)
         nu_wb_arr[i,:] = nu_wb.vector
     Q_num = np.cov(nu_wb_arr, rowvar=False)
 
-    N_samples = int(2e5)  # no difference above
+    N_samples = int(4e4)  # no difference above
     nu_wb_arr = np.zeros((N_samples,6))
     print(f'Monte Carlo Sampling N_samples={N_samples}')
     for i in range(N_samples):
@@ -71,9 +73,9 @@ def frobenius_norm(Q1, Q2):
     return np.sqrt(np.trace((Q1 - Q2).T @ (Q1 - Q2)))
 
 
-#Q, Q_num, Q_num_txso3 = get_Qs()
-Q, Q_num, Q_num_txso3 = load_Qs()
-#save_Qs(Q, Q_num, Q_num_txso3)
+Q, Q_num, Q_num_txso3 = get_Qs()
+# Q, Q_num, Q_num_txso3 = load_Qs()
+# save_Qs(Q, Q_num, Q_num_txso3)
 
 
 
@@ -81,4 +83,5 @@ print('Q_num')
 print(frobenius_norm(Q_num, Q))
 print('Q_num_txso3')
 print(frobenius_norm(Q_num_txso3, Q))
+print('')
 

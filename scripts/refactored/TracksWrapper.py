@@ -58,7 +58,7 @@ class Track:
         self.cached_attributes = {"T_wo_init": [-1, None],  # init means without extrapolation
                                   "Q_init": [-1, None],
                                   "nu_init": [-1, None]}
-
+        self.max_order_derivative = 1
     def is_valid(self, time_stamp):
         Q = self.get_Q_extrapolated(time_stamp)
         R_det = np.linalg.det(Q[:3, :3]) ** 0.5
@@ -72,8 +72,12 @@ class Track:
         symbol = L(self.parent.SYMBOL_GAP * self.idx + self.num_detected)
         return symbol
     def get_nu_symbol(self):
-        symbol = V(self.parent.SYMBOL_GAP * self.idx + self.num_detected)
+        # symbol = V(self.parent.SYMBOL_GAP * self.idx + self.num_detected)
+        symbol = self.get_derivative_symbol(1)
         return symbol
+
+    def get_derivative_symbol(self, order) -> int:
+        return L(self.parent.SYMBOL_GAP * self.idx + self.num_detected + (self.parent.SYMBOL_GAP//self.parent.DERIVATIVE_SYMBOL_GAP) * order)
 
     def get_T_wo_init(self) -> gtsam.Pose3:
         attribute_name = "T_wo_init"
@@ -98,6 +102,7 @@ class Track:
             else:
                 self.cached_attributes[attribute_name][1] = np.zeros(6)
         return self.cached_attributes[attribute_name][1]
+
     def get_T_wo_extrapolated(self, time_stamp) -> gtsam.Pose3:
         T_wo_init = self.get_T_wo_init()
         nu = self.get_nu_init()
@@ -124,31 +129,57 @@ class Track:
     def __hash__(self):
         return self.idx
 
-    def add_detection(self, T_co:gtsam.Pose3, Q, time_stamp):
+    def add_detection(self, T_wc:gtsam.Pose3, T_co:gtsam.Pose3, Q:np.ndarray, time_stamp:float):
         T_co = gtsam.Pose3(T_co)
+        T_wc = gtsam.Pose3(T_wc)
+        # T_wc = self.parent.camera.get_T_wc_init()
+        T_wo = T_wc * T_co
         self.num_detected += 1
 
         noise = gtsam.noiseModel.Gaussian.Covariance(Q)
         factor = gtsam.BetweenFactorPose3(self.parent.camera.get_symbol(), self.get_symbol(), T_co, noise)
         self.parent.factor_graph.add_factor(factor)
-        T_wc = self.parent.camera.get_T_wc_init()
-        T_wo = T_wc * T_co
         self.parent.factor_graph.inser_estimate(self.get_symbol(), T_wo)
-        if self.num_detected >= 2:
-            dt = time_stamp - self.last_seen_time_stamp
-            error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
-            cov2 = np.eye(6)
-            cov2[:3, :3] = np.eye(3) * self.parent.params.cov2_R * dt
-            cov2[3:6, 3:6] = np.eye(3) * self.parent.params.cov2_t * dt
-            prior_int_twist = gtsam.noiseModel.Gaussian.Covariance(cov2)
-            factor = gtsam.CustomFactor(prior_int_twist, [self.get_symbol() - 1, self.get_symbol(), self.get_nu_symbol()], error_func)
-            self.parent.factor_graph.add_factor(factor)
-            velocity_estimate = gtsam.Pose3.Logmap(self.get_T_wo_init().inverse() * T_wo)
-            # self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), np.zeros(6))  # TODO: use a better estimate
-            self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), velocity_estimate)  # TODO: use a better estimate
-        if self.num_detected >= 3:
-            velocity_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_velocity_Q(dt))
-            self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_nu_symbol() - 1, self.get_nu_symbol(), np.zeros(6), velocity_noise))
+        for order in range(1, self.max_order_derivative + 1):  # order=1...velocity, order=2...acceleration, order=3...jerk ...
+            if self.num_detected > order:
+                dt = time_stamp - self.last_seen_time_stamp
+                cov2 = np.eye(6)
+                cov2[:3, :3] = np.eye(3) * self.parent.params.cov2_R
+                cov2[3:6, 3:6] = np.eye(3) * self.parent.params.cov2_t
+                triple_factor_noise = gtsam.noiseModel.Gaussian.Covariance(cov2)
+                if order == 1:
+                    error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
+                elif order > 1:
+                    pass
+                    #  TODO: this
+                    # error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
+                factor = gtsam.CustomFactor(triple_factor_noise,[self.get_derivative_symbol(order-1) - 1,
+                                                                 self.get_derivative_symbol(order-1),
+                                                                 self.get_derivative_symbol(order)],
+                                                                 error_func)
+                self.parent.factor_graph.add_factor(factor)
+                self.parent.factor_graph.inser_estimate(self.get_derivative_symbol(order), np.zeros((6)))
+        if self.num_detected > self.max_order_derivative:
+            between_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_velocity_Q(dt))
+            self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_derivative_symbol(self.max_order_derivative) - 1,
+                                                                          self.get_derivative_symbol(self.max_order_derivative),
+                                                                          np.zeros(6),
+                                                                          between_noise))
+        # if self.num_detected >= 2:
+        #     dt = time_stamp - self.last_seen_time_stamp
+        #     error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
+        #     cov2 = np.eye(6)
+        #     cov2[:3, :3] = np.eye(3) * self.parent.params.cov2_R * dt
+        #     cov2[3:6, 3:6] = np.eye(3) * self.parent.params.cov2_t * dt
+        #     prior_int_twist = gtsam.noiseModel.Gaussian.Covariance(cov2)
+        #     factor = gtsam.CustomFactor(prior_int_twist, [self.get_symbol() - 1, self.get_symbol(), self.get_nu_symbol()], error_func)
+        #     self.parent.factor_graph.add_factor(factor)
+        #     velocity_estimate = gtsam.Pose3.Logmap(self.get_T_wo_init().inverse() * T_wo)
+        #     # self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), np.zeros(6))  # TODO: use a better estimate
+        #     self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), velocity_estimate)  # TODO: use a better estimate
+        # if self.num_detected >= 3:
+        #     velocity_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_velocity_Q(dt))
+        #     self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_nu_symbol() - 1, self.get_nu_symbol(), np.zeros(6), velocity_noise))
         self.last_seen_time_stamp = time_stamp
         self.parent.last_time_stamp = time_stamp
 
@@ -163,7 +194,8 @@ class Tracks:
         self.update_stamp = 0
         self.last_time_stamp = None
 
-        self.SYMBOL_GAP = 10 ** 6
+        self.SYMBOL_GAP = 10 ** 8
+        self.DERIVATIVE_SYMBOL_GAP = 10**2  #  the highest order of a derivative that can be used for a track
 
 
     def remove_expired_tracks(self):

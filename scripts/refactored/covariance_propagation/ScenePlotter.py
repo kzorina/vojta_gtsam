@@ -31,18 +31,19 @@ class Plotter:
         self.ax.set_zlim(*self.z_lim)
 
 
-    def plot_Q(self, Q, T:gtsam.Pose3, alpha=0.2):
+    def plot_Q(self, Q, T:gtsam.Pose3, alpha=0.2, color='g'):
         assert Q.shape == (3, 3)
+        # Q = (Q_ + Q_.T)/2
         u = np.linspace(0, 2 * np.pi, 30)
         v = np.linspace(0, np.pi, 30)
         x = np.outer(np.cos(u), np.sin(v))
         y = np.outer(np.sin(u), np.sin(v))
         z = np.outer(np.ones_like(u), np.cos(v))
         sphere = np.stack((x, y, z), axis=-1)[..., None]
-        e, v = np.linalg.eig(Q)
+        e, v = np.linalg.eigh(Q)
         s = v @ np.diag(np.sqrt(e)) @ v.T
         ellipsoid = (s @ sphere).squeeze(-1) + gtsam.Pose3(T).translation()
-        self.ax.plot_surface(*ellipsoid.transpose(2, 0, 1), rstride=4, cstride=4, color='g', alpha=alpha)
+        self.ax.plot_surface(*ellipsoid.transpose(2, 0, 1), rstride=4, cstride=4, color=color, alpha=alpha)
         self.ax.plot_wireframe(*ellipsoid.transpose(2, 0, 1), rstride=4, linewidth=0.3, cstride=4, color='black', alpha=0.5)
 
 
@@ -53,6 +54,13 @@ class Plotter:
         for i in range(3):
             line_end = line_start + T[:3, i]*size
             self.ax.plot([line_start[0], line_end[0]], [line_start[1], line_end[1]], [line_start[2], line_end[2]], c=colors[i], alpha=alpha)
+
+    def plot_text(self, T:gtsam.Pose3, text:str):
+        t = T.translation()
+        self.ax.text(t[0], t[1], t[2], f"{text}", size=10, zorder=1,color='k')
+
+    def plot_points(self, points):
+        self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], c = 'b', marker='o')
 
     def set_camera_view(self, x=0, y=0,z=0):
 
