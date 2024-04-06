@@ -69,7 +69,7 @@ def main():
         all_object_labels.update(frame.keys())
     all_object_labels = sorted(all_object_labels)
 
-    object_label = all_object_labels[4]
+    object_label = all_object_labels[0]
     Qs_t = np.zeros((len(frames_refined_prediction)))
     Qs_r = np.zeros((len(frames_refined_prediction)))
     for frame in range(len(frames_refined_prediction)):
@@ -77,9 +77,9 @@ def main():
             if len(frames_refined_prediction[frame][object_label]) > 0:
                 Q = frames_refined_prediction[frame][object_label][0]['Q']
 
-                Qs_r[frame] = np.linalg.det(Q[:3, :3])**(0.01)
+                Qs_r[frame] = np.linalg.det(Q[:3, :3])**(1/3)
 
-                Qs_t[frame] = np.linalg.det(Q[3:6, 3:6])**(0.01)
+                Qs_t[frame] = np.linalg.det(Q[3:6, 3:6])**(1/3)
         else:
             Qs_r[frame] = None
             Qs_t[frame] = None
@@ -93,8 +93,8 @@ def main():
     ax[0].hlines(y=0.95, xmin=0, xmax=len(Qs_r), linewidth=2, color='r')
     ax[1].plot(np.arange(len(Qs_t)), Qs_t, "-", label=f"Qs_t")
     ax[1].hlines(y=0.75, xmin=0, xmax=len(Qs_t), linewidth=2, color='r')
-    ax[0].set_ylim([0.8, 1])
-    ax[1].set_ylim([0.6, 1])
+    ax[0].set_ylim([0.0, 0.06])
+    ax[1].set_ylim([0.0, 0.0001])
     ax[0].set_xlabel("frame")
     ax[0].set_ylabel("det(cov R)^0.5")
     #

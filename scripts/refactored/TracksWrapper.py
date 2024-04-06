@@ -9,6 +9,8 @@ from distribution_distances import mahalanobis_distance, bhattacharyya_distance
 from collections import defaultdict
 import custom_odom_factors
 from functools import partial
+from scipy.special import factorial
+from State import BareTrack
 import utils
 
 class Camera:
@@ -58,69 +60,89 @@ class Track:
         self.cached_attributes = {"T_wo_init": [-1, None],  # init means without extrapolation
                                   "Q_init": [-1, None],
                                   "nu_init": [-1, None]}
-        self.max_order_derivative = 1
-    def is_valid(self, time_stamp):
-        Q = self.get_Q_extrapolated(time_stamp)
-        R_det = np.linalg.det(Q[:3, :3]) ** 0.5
-        t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
-        a, b = np.linalg.det(Q[:3, :3]), np.linalg.det(Q[3:6, 3:6])
-        if t_det < self.parent.params.t_validity_treshold and R_det < self.parent.params.R_validity_treshold:
-            return True
-        return False
+        # self.max_order_derivative = 2  # 1...const velocity, 2...const acceleration, ...
+        self.max_order_derivative = parent.params.max_derivative_order
+        self.cached_derivatives = [[-1, None] for i in range(self.max_order_derivative + 2)]
+        self.cached_Q_derivatives = [[-1, None] for i in range(self.max_order_derivative + 2)]
+
+    @staticmethod
+    def extrapolate_func(dt:float, T_wo:gtsam.Pose3, derivatives:np.ndarray, Q:np.ndarray, Q_derivatives:np.ndarray):
+        order = derivatives.shape[0]
+
+        dts = np.full((order), dt)
+        i = np.arange((order)) + 1
+        ret = (dts**i)/factorial(i)
+        x = ret[np.newaxis].T
+
+        tau = np.sum(derivatives * x, axis=0)
+        new_Q = Q + np.sum(Q_derivatives * x[:, np.newaxis], axis=0)
+        R_new = gtsam.Rot3.Expmap(tau[:3]) * T_wo.rotation()
+        t_new = T_wo.translation() + tau[3:6]
+        new_T_wo = gtsam.Pose3(R_new, t_new)
+        return new_T_wo, new_Q
+
+    def get_active_derivative_symbols(self):
+        ret = []
+        for order in range(0, min(self.max_order_derivative, self.num_detected - 1)):
+            ret.append(self.get_derivative_symbol(order + 1))
+        return ret
 
     def get_symbol(self):
         symbol = L(self.parent.SYMBOL_GAP * self.idx + self.num_detected)
-        return symbol
-    def get_nu_symbol(self):
-        # symbol = V(self.parent.SYMBOL_GAP * self.idx + self.num_detected)
-        symbol = self.get_derivative_symbol(1)
         return symbol
 
     def get_derivative_symbol(self, order) -> int:
         return L(self.parent.SYMBOL_GAP * self.idx + self.num_detected + (self.parent.SYMBOL_GAP//self.parent.DERIVATIVE_SYMBOL_GAP) * order)
 
     def get_T_wo_init(self) -> gtsam.Pose3:
-        attribute_name = "T_wo_init"
-        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
-            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
-            self.cached_attributes[attribute_name][1] = self.parent.factor_graph.current_estimate.atPose3(self.get_symbol())
-        return self.cached_attributes[attribute_name][1]
+        if self.cached_derivatives[0][0] < self.parent.update_stamp:
+            self.cached_derivatives[0][0] = self.parent.update_stamp
+            self.cached_derivatives[0][1] = self.parent.factor_graph.current_estimate.atPose3(self.get_symbol())
+        return self.cached_derivatives[0][1]
 
-    def get_Q_init(self) -> gtsam.Pose3:
-        attribute_name = "Q_init"
-        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
-            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
-            self.cached_attributes[attribute_name][1] = self.parent.factor_graph.marginalCovariance(self.get_symbol())
-        return self.cached_attributes[attribute_name][1]
+    def get_derivative(self, order) -> np.ndarray:
+        assert order > 0
+        if order >= self.num_detected:
+            return np.zeros((6))
+        if order == self.max_order_derivative + 1:
+            return np.zeros((6))
+        if self.cached_derivatives[order][0] < self.parent.update_stamp:
+            self.cached_derivatives[order][0] = self.parent.update_stamp
+            self.cached_derivatives[order][1] = self.parent.factor_graph.current_estimate.atVector(self.get_derivative_symbol(order))
+        return self.cached_derivatives[order][1]
 
-    def get_nu_init(self):
-        attribute_name = "nu_init"
-        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
-            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
-            if self.num_detected >= 2:
-                self.cached_attributes[attribute_name][1] = self.parent.factor_graph.current_estimate.atVector(self.get_nu_symbol())
-            else:
-                self.cached_attributes[attribute_name][1] = np.zeros(6)
-        return self.cached_attributes[attribute_name][1]
+    def get_Q_derivative(self, order) -> np.ndarray:
+        if order == self.max_order_derivative + 1:
+            return self.get_highest_derivative_Q(1)
+        if order >= self.num_detected:
+            return np.eye(6)
+        if self.cached_Q_derivatives[order][0] < self.parent.update_stamp:
+            self.cached_Q_derivatives[order][0] = self.parent.update_stamp
+            self.cached_Q_derivatives[order][1] = self.parent.factor_graph.marginalCovariance(self.get_derivative_symbol(order))
+        return self.cached_Q_derivatives[order][1]
 
-    def get_T_wo_extrapolated(self, time_stamp) -> gtsam.Pose3:
-        T_wo_init = self.get_T_wo_init()
-        nu = self.get_nu_init()
-        dt = time_stamp - self.last_seen_time_stamp
-        T_wo = custom_odom_factors.plus_so3r3_global(T_wo_init, nu, dt)
-        return T_wo
+    def get_bare_track(self):
+        derivatives = np.zeros((self.max_order_derivative + 1, 6))
+        Q_derivatives = np.zeros((self.max_order_derivative + 1, 6, 6))
+        T_wo = self.get_T_wo_init()
+        Q = self.get_Q_derivative(0)
+        for i in range(1, self.max_order_derivative + 2):
+            derivatives[i-1, :] = self.get_derivative(i)
+            Q_derivatives[i-1, :, :] = self.get_Q_derivative(i)
+        bare_track = BareTrack(self.idx, T_wo, Q, derivatives, Q_derivatives, self.last_seen_time_stamp, self.extrapolate_func)
+        return bare_track
 
-    def get_velocity_Q(self, dt):
+    def get_highest_derivative_Q(self, dt):
         Q = np.eye(6)
         Q[:3, :3] = np.eye(3) * self.parent.params.cov_drift_ang_vel * dt
         Q[3:6, 3:6] = np.eye(3) * self.parent.params.cov_drift_lin_vel * dt
         return Q
 
-    def get_Q_extrapolated(self, time_stamp):
-        Q_init = self.get_Q_init()
-        dt = time_stamp - self.last_seen_time_stamp
-        Q = Q_init + self.get_velocity_Q(dt)
-        return Q
+    # def get_Q_extrapolated(self, time_stamp):
+    #     Q_init = self.get_Q_init()
+    #     dt = time_stamp - self.last_seen_time_stamp
+    #     Q = Q_init + self.get_velocity_Q(dt)
+    #     return Q
 
     def __repr__(self):
         # return f"obj_label:{self.obj_label}, idx:{self.idx}, num_detected:{self.num_detected}, last_seen_time_stamp:{self.last_seen_time_stamp}"
@@ -149,37 +171,23 @@ class Track:
                 triple_factor_noise = gtsam.noiseModel.Gaussian.Covariance(cov2)
                 if order == 1:
                     error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
-                elif order > 1:
+                else:
                     pass
-                    #  TODO: this
-                    # error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
+                    error_func = partial(custom_odom_factors.error_derivative_integration_so3r3_global, dt)
                 factor = gtsam.CustomFactor(triple_factor_noise,[self.get_derivative_symbol(order-1) - 1,
                                                                  self.get_derivative_symbol(order-1),
                                                                  self.get_derivative_symbol(order)],
                                                                  error_func)
                 self.parent.factor_graph.add_factor(factor)
-                self.parent.factor_graph.inser_estimate(self.get_derivative_symbol(order), np.zeros((6)))
-        if self.num_detected > self.max_order_derivative:
-            between_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_velocity_Q(dt))
+                self.parent.factor_graph.inser_estimate(self.get_derivative_symbol(order), np.zeros((6)))  # TODO: use better estimate
+        if self.num_detected > self.max_order_derivative + 1:
+            dt = time_stamp - self.last_seen_time_stamp
+            between_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_highest_derivative_Q(dt))
             self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_derivative_symbol(self.max_order_derivative) - 1,
                                                                           self.get_derivative_symbol(self.max_order_derivative),
                                                                           np.zeros(6),
                                                                           between_noise))
-        # if self.num_detected >= 2:
-        #     dt = time_stamp - self.last_seen_time_stamp
-        #     error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
-        #     cov2 = np.eye(6)
-        #     cov2[:3, :3] = np.eye(3) * self.parent.params.cov2_R * dt
-        #     cov2[3:6, 3:6] = np.eye(3) * self.parent.params.cov2_t * dt
-        #     prior_int_twist = gtsam.noiseModel.Gaussian.Covariance(cov2)
-        #     factor = gtsam.CustomFactor(prior_int_twist, [self.get_symbol() - 1, self.get_symbol(), self.get_nu_symbol()], error_func)
-        #     self.parent.factor_graph.add_factor(factor)
-        #     velocity_estimate = gtsam.Pose3.Logmap(self.get_T_wo_init().inverse() * T_wo)
-        #     # self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), np.zeros(6))  # TODO: use a better estimate
-        #     self.parent.factor_graph.inser_estimate(self.get_nu_symbol(), velocity_estimate)  # TODO: use a better estimate
-        # if self.num_detected >= 3:
-        #     velocity_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_velocity_Q(dt))
-        #     self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_nu_symbol() - 1, self.get_nu_symbol(), np.zeros(6), velocity_noise))
+
         self.last_seen_time_stamp = time_stamp
         self.parent.last_time_stamp = time_stamp
 
@@ -194,7 +202,7 @@ class Tracks:
         self.update_stamp = 0
         self.last_time_stamp = None
 
-        self.SYMBOL_GAP = 10 ** 8
+        self.SYMBOL_GAP = 10 ** 10
         self.DERIVATIVE_SYMBOL_GAP = 10**2  #  the highest order of a derivative that can be used for a track
 
 
@@ -212,7 +220,7 @@ class Tracks:
         self.tracks[obj_label].add(new_track)
         return new_track
 
-    def calculate_D(self, tracks, detections):
+    def calculate_D(self, tracks, detections, time_stamp):
         """
         Calculates a 2d matrix containing distances between each new and old object estimates
         """
@@ -220,7 +228,9 @@ class Tracks:
         T_wc:gtsam.Pose3 = self.camera.get_T_wc_init()
         for i in range(len(tracks)):
             track: Track = tracks[i]
-            T_co_track:gtsam.Pose3 = T_wc.inverse() * track.get_T_wo_init()
+            bare_track = track.get_bare_track()
+            T_wo, Q_oo = bare_track.extrapolate(time_stamp)
+            T_co_track:gtsam.Pose3 = T_wc.inverse() * T_wo
             # Q_wo_track =
             for j in range(len(detections)):
                 T_co_detection = gtsam.Pose3(detections[j]["T_co"])
@@ -230,10 +240,10 @@ class Tracks:
                 D[i, j] = mahalanobis_distance(w, Q_co_detection)
         return D
 
-    def get_tracks_matches(self, obj_label, detections):
+    def get_tracks_matches(self, obj_label, detections, time_stamp):
         assignment = [None for i in range(len(detections))]
         tracks = list(self.tracks[obj_label])
-        D = self.calculate_D(tracks, detections)
+        D = self.calculate_D(tracks, detections, time_stamp)
         for i in range(min(D.shape[0], D.shape[1])):
             arg_min = np.unravel_index(np.argmin(D, axis=None), D.shape)
             minimum = D[arg_min]

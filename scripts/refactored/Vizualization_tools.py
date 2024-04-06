@@ -69,6 +69,7 @@ def animate_refinement(refined_scene, scene_gt=None, scene_camera=None):
             for obj_idx in range(len(refined_scene[num][obj_label])):
                 track = refined_scene[num][obj_label][obj_idx]
                 if track["valid"]:
+                # if True:
                     T_co:gtsam.Pose3 = gtsam.Pose3(track['T_co'])
                     T_wc:gtsam.Pose3 = gtsam.Pose3(track['T_wc'])
                     T_wo:gtsam.Pose3 = T_wc * T_co

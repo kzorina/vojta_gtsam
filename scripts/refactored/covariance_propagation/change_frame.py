@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider, Button, RadioButtons
 
-
 np.random.seed(0)
 pin.seed(0)
 
@@ -25,12 +24,6 @@ def random_pose():
     T = pin.SE3.Random().homogeneous
     T[:3, 3] /= 10
     return gtsam.Pose3(pin.SE3.Random().homogeneous)
-
-# def sample_se3(T: pin.SE3, Q: np.ndarray):
-#     assert Q.shape[0] == Q.shape[1] == 6
-#     # Sample tangent space element in "local" frame ("right" convention)
-#     eta = np.random.multivariate_normal(np.zeros(6), Q)
-#     return T * pin.exp6(eta)
 
 def sample_se3(Q: np.ndarray):
     assert Q.shape[0] == Q.shape[1] == 6
@@ -83,31 +76,8 @@ T_wo = T_wc * T_co
 J_wo_wc = T_co.inverse().AdjointMap()
 J_wo_co = np.eye(6)
 Q_wo = J_wo_wc @ Q_cc @ J_wo_wc.T + J_wo_co @ Q_oo @ J_wo_co.T
-# Q_wo = Q_cc + Q_oo
 
-# Verify numerically (Monte-Carlo)
-
-
-# fig = plt.figure()
-# ax = fig.add_subplot(1,2, projection='3d')
 fig, ax = plt.subplots(1,2,figsize=(10,10),subplot_kw=dict(projection='3d'))
-plotter_L = Plotter(ax[0])
-
-plotter_L.plot_T(gtsam.Pose3(np.eye(6)))
-T_wc_0 = T_wc.matrix()
-T_wc_0[:3, 3] = 0
-J_wc_0 = gtsam.Pose3(T_wc_0).AdjointMap()
-J_wc = T_wc.inverse().AdjointMap()
-plotter_L.plot_Q((J_wc @ Q_cc @ J_wc.T)[3:6, 3:6], T_wc.inverse(), color='g')
-# plotter.plot_Q((J_wc_0 @ Q_cc @ J_wc_0.T)[:3, :3], T_wc, color='r')
-plotter_L.plot_Q((J_wc_0 @ Q_cc @ J_wc_0.T)[3:6, 3:6], T_wc, color='b')
-plotter_L.plot_Q((Q_cc)[3:6, 3:6], gtsam.Pose3(np.eye(6)), color='r')
-# plotter.plot_Q((Q_cc)[3:6, 3:6], T_wc, color='b')
-plotter_L.plot_text(T_wc, "T_wc")
-plotter_L.plot_text(T_wc.inverse(), "T_cw")
-# plotter_L.plot_text(T_wc, "T_wc")
-plotter_L.plot_T(T_wc.inverse())
-plotter_L.plot_T(T_wc)
 
 plotter_R = Plotter(ax[1])
 
@@ -117,18 +87,9 @@ T_wc_0[:3, 3] = 0
 J_wc_0 = gtsam.Pose3(T_wc_0).AdjointMap()
 J_wc = T_wc.inverse().AdjointMap()
 plotter_R.plot_Q((J_wc_0 @ Q_cc @ J_wc_0.T)[3:6, 3:6], T_wc, color='g')
-plotter_R.plot_Q((J_wc @ J_wc_0 @ Q_cc @ J_wc_0.T @ J_wc.T)[3:6, 3:6], T_wc, color='b')
 plotter_R.plot_Q((Q_cc)[3:6, 3:6], gtsam.Pose3(np.eye(6)), color='r')
-# plotter.plot_Q((Q_cc)[3:6, 3:6], T_wc, color='b')
 plotter_R.plot_text(T_wc, "T_wc")
 plotter_R.plot_T(T_wc)
-
-# J_wo = T_wo.AdjointMap()
-# plotter.plot_Q((J_wo @ Q_oo @ J_wo.T)[3:6, 3:6] * 1, T_wo, color='g')
-# plotter.plot_Q((J_wo @ Q_oo @ J_wo.T)[:3, :3] * 1, T_wo, color='r')
-# plotter.plot_Q((Q_oo)[:3, :3] * 1, gtsam.Pose3(np.eye(6)), color='b')
-# plotter.plot_T(T_wo)
-# plotter.plot_text(T_wo, "T_wo")
 
 N_samples = int(1e3)  # no difference above
 nu_wo_arr = np.zeros((N_samples,6))
@@ -141,15 +102,15 @@ for i in range(N_samples):
     T_oo_n = sample_se3(Q_oo)
     T_wo_n = T_wc * T_cc_n * T_co * T_oo_n
     # nu_wo = gtsam.Pose3.Logmap(T_wo * T_wo_n.inverse())  # local
-    nu_wo = gtsam.Pose3.Logmap(T_wo.inverse() * T_wo_n)  # global
+    nu_wo = gtsam.Pose3.Logmap(T_wo_n * T_wo.inverse())  # global
     # nu_wo = gtsam.Pose3.Logmap(T_wo_n)
 
     points[i,:] = (T_wc * T_cc_n).translation()
 
     nu_wo_arr[i,:] = nu_wo
 # plotter.plot_points(points)
-plt.show()
-time.sleep(10)
+# plt.show()
+# time.sleep(10)
 # rowvar = each row is one observation
 Q_wo_num = np.cov(nu_wo_arr, rowvar=False)
 

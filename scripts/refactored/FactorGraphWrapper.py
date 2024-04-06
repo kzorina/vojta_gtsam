@@ -1,6 +1,7 @@
 import gtsam
 from GlobalParams import GlobalParams
 import numpy as np
+from gtsam.symbol_shorthand import L, X, V
 
 class FactorGraphWrapper:
     def __init__(self, params:GlobalParams):
@@ -21,12 +22,17 @@ class FactorGraphWrapper:
             self.active_graphs.append(gtsam.NonlinearFactorGraph())
 
 
-    def add_factor(self, factor):
+    def add_factor(self, factor:gtsam.Factor):
         self.new_graph.add(factor)
+        a = np.array(factor.keys()) - L(0)
+        if np.isin(2010001, a):
+            print('')
         for i in range(self.chunk_count):
             self.active_graphs[i].add(factor)
 
     def inser_estimate(self, symbol, pose):
+        if 2010001 == symbol - L(0):
+            print('')
         self.initial_estimate.insert(symbol, pose)
 
     def swap_chunks(self, tracks):
@@ -35,20 +41,16 @@ class FactorGraphWrapper:
         for obj_label in tracks:
             for track in tracks[obj_label]:
                 T_wo = track.get_T_wo_init()
-                Q = track.get_Q_init()
+                Q = track.get_Q_derivative(0)
                 noise = gtsam.noiseModel.Gaussian.Covariance(Q)
                 new_graph.add(gtsam.PriorFactorPose3(track.get_symbol(), T_wo, noise))
                 initial_estimate.insert(track.get_symbol(), T_wo)
-                velocity_symbol = track.get_nu_symbol()
-                if track.num_detected >= 2:
-                    nu = self.current_estimate.atVector(velocity_symbol)
-                    Q_velocity = self.isams[self.active_chunk].marginalCovariance(velocity_symbol)
-                else:
-                    nu = np.zeros(6)
-                    Q_velocity = np.eye(6)*10
-                velocity_noise = gtsam.noiseModel.Gaussian.Covariance(Q_velocity)
-                new_graph.add(gtsam.PriorFactorVector(velocity_symbol, nu, velocity_noise))
-                initial_estimate.insert(velocity_symbol, nu)
+                for derivative_symbol in track.get_active_derivative_symbols():
+                    derivative = self.current_estimate.atVector(derivative_symbol)
+                    Q_derivative = self.isams[self.active_chunk].marginalCovariance(derivative_symbol)
+                    derivative_noise = gtsam.noiseModel.Gaussian.Covariance(Q_derivative)
+                    new_graph.add(gtsam.PriorFactorVector(derivative_symbol, derivative, derivative_noise))
+                    initial_estimate.insert(derivative_symbol, derivative)
         self.active_graphs[self.active_chunk] = new_graph.clone()
         self.isams[self.active_chunk] = gtsam.ISAM2(self.parameters)
         self.isams[self.active_chunk].update(new_graph, initial_estimate)

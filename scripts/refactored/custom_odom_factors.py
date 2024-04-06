@@ -150,3 +150,32 @@ def plus_so3r3_global(T: gtsam.Pose3, nu: np.ndarray, dt: float):
     t_new = T.translation() + v * dt
     # return gtsam.Pose3(gtsam.Rot3.Expmap(do*dt), dv*dt) * T
     return gtsam.Pose3(R_new, t_new)
+
+def error_derivative_integration_so3r3_global(
+        dt: float, this: gtsam.CustomFactor,
+        values: gtsam.Values,
+        jacobians: Optional[List[np.ndarray]]) -> np.ndarray:
+    """Odometry Factor error function
+
+    :param measurement: [dt]!
+    :param this: gtsam.CustomFactor handle
+    :param values: gtsam.Values
+    :param jacobians: Optional list of Jacobians
+    :return: the unwhitened error
+    """
+
+    # Retrieve values
+    key_p1 = this.keys()[0]
+    key_p2 = this.keys()[1]
+    key_v1 = this.keys()[2]
+    nu1, nu2 = values.atVector(key_p1), values.atVector(key_p2)
+    d_nu12 = values.atVector(key_v1)
+
+    error = nu2 - nu1 - d_nu12 * dt
+    # and jacobians
+    if jacobians is not None:
+        # TODO: could not find gtsam equivalent
+        jacobians[0] = -np.eye(6)
+        jacobians[1] = np.eye(6)
+        jacobians[2] = -np.eye(6) * dt
+    return error

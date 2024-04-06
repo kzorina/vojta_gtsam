@@ -2,6 +2,7 @@
 from TracksWrapper import Tracks, Track
 from GlobalParams import GlobalParams
 import gtsam
+from State import State, BareTrack
 
 class SamWrapper:
     def __init__(self, params:GlobalParams):
@@ -11,44 +12,26 @@ class SamWrapper:
         pass
 
     def get_state(self):
-        ret = {}
+        state = State()
         for obj_label in self.tracks.tracks:
-            ret[obj_label] = []
             for track in self.tracks.tracks[obj_label]:
-                T_wo = track.get_T_wo_init()
-                Q = track.get_Q_init()
-                idx = track.idx
-                ret[obj_label].append({"T_wo":T_wo, "id":idx, "Q":Q})
-        return ret
-
-    def get_state_extrapolated(self, time_stamp):
-        ret = {}
-        for obj_label in self.tracks.tracks:
-            ret[obj_label] = []
-            for track in self.tracks.tracks[obj_label]:
-                T_wo = track.get_T_wo_extrapolated(time_stamp)
-                # T_co:gtsam.Pose3 = gtsam.Pose3(T_wc).inverse() * T_wo
-                Q = track.get_Q_extrapolated(time_stamp)
-                idx = track.idx
-                ret[obj_label].append({"T_wo": T_wo.matrix(),
-                                       "id":idx,
-                                       "Q":Q,
-                                       "valid": track.is_valid(time_stamp)})
-        self.tracks.remove_expired_tracks(time_stamp)
-        return ret
+                bare_track = track.get_bare_track()
+                state.add_bare_track(obj_label, bare_track)
+        return state
 
     def insert_detections(self, T_wc_detection, T_co_detections, time_stamp):
         self.frame += 1
         self.tracks.camera.add_detection(T_wc_detection["T_wc"], T_wc_detection["Q"], time_stamp)
+        T_wc = gtsam.Pose3(T_wc_detection["T_wc"])
         for obj_label in T_co_detections:
-            matched_tracks = self.tracks.get_tracks_matches(obj_label, T_co_detections[obj_label])
+            matched_tracks = self.tracks.get_tracks_matches(obj_label, T_co_detections[obj_label], time_stamp)
             for i in range(len(T_co_detections[obj_label])):
                 track:Track = matched_tracks[i]
                 T_co = T_co_detections[obj_label][i]["T_co"]
                 Q = T_co_detections[obj_label][i]["Q"]
                 if track is None:
                     track:Track = self.tracks.create_track(obj_label)
-                track.add_detection(T_co, Q, time_stamp)
+                track.add_detection(T_wc, T_co, Q, time_stamp)
         self.tracks.remove_expired_tracks(time_stamp)
         self.tracks.factor_graph.update()
         if self.frame % self.params.chunk_size == 0:

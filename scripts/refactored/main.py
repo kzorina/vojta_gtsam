@@ -13,8 +13,10 @@ from Vizualization_tools import display_factor_graph, animate_refinement
 
 
 def is_valid(Q, t_validity_treshold, R_validity_treshold):
-    R_det = np.linalg.det(Q[:3, :3]) ** 0.5
-    t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
+    # R_det = np.linalg.det(Q[:3, :3]) ** 0.5
+    # t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
+    R_det = np.linalg.det(Q[:3, :3]) ** (1/3)
+    t_det = np.linalg.det(Q[3:6, 3:6]) ** (1/3)
     if t_det < t_validity_treshold and R_det < R_validity_treshold:
         return True
     return False
@@ -42,8 +44,8 @@ def refine_scene(scene_camera, frames_prediction, px_counts, params:GlobalParams
         Q_T_wc = np.eye(6)*10**(-6)
         detections = merge_T_cos_px_counts(frames_prediction[i], px_counts[i])  # T_co and Q for all detected object in a frame.
         sam.insert_detections({"T_wc":T_wc, "Q":Q_T_wc}, detections, time_stamp)
-        current_state = sam.get_state_extrapolated(T_wc, time_stamp)
-        refined_scene.append(current_state)
+        current_state = sam.get_state()
+        refined_scene.append(current_state.get_extrapolated_state(time_stamp, T_wc))
         # display_factor_graph(*utils.parse_variable_index(sam.tracks.factor_graph.isams[sam.tracks.factor_graph.active_chunk].getVariableIndex()))
         # time.sleep(1)
         print(f"\r({(i + 1)}/{len(scene_camera)})", end='')
@@ -59,8 +61,7 @@ def refine_dataset(DATASETS_PATH, DATASET_NAME, scenes, params):
         # animate_refinement(refined_scene)
         recalculated_refined_scene = recalculate_validity(refined_scene, params.t_validity_treshold, params.R_validity_treshold)
         with open(scene_path / 'frames_refined_prediction.p', 'wb') as file:
-            pickle.dump(refined_scene, file)
-        print("")
+            pickle.dump(recalculated_refined_scene, file)
 
 def main():
     start_time = time.time()
@@ -71,7 +72,7 @@ def main():
     scenes = [0]
     params = GlobalParams()
 
-    # refine_dataset(DATASETS_PATH, DATASET_NAME, scenes, params)
+    refine_dataset(DATASETS_PATH, DATASET_NAME, scenes, params)
 
     refined_scene = load_pickle(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'frames_refined_prediction.p')
     scene_gt = utils.load_scene_gt(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'scene_gt.json', list(utils.HOPE_OBJECT_NAMES.values()))
