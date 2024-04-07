@@ -3,8 +3,8 @@ from dataclasses import dataclass
 class GlobalParams:
     translation_dist_weight: float = 1.0
     mod: int = 1
-    cov_drift_lin_vel: float = 0.00001
-    cov_drift_ang_vel: float = 0.001
+    cov_drift_lin_vel: float = 0.00000000001
+    cov_drift_ang_vel: float = 0.000000001
     cov2_t: float = 0.000000000001
     cov2_R: float = 0.000000000001
     t_validity_treshold: float = 2.5e-5

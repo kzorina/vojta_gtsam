@@ -16,7 +16,7 @@ pin.seed(0)
 
 def random_cov(dim=6):
     A = np.random.rand(dim, dim)
-    sig = 0.4  # meters and radians
+    sig = 0.1  # meters and radians
     Q = sig**2*np.dot(A, A.T)
     return Q
 
@@ -36,14 +36,14 @@ def sample_se3(Q: np.ndarray):
 T_wc:gtsam.Pose3 = random_pose()
 T_co:gtsam.Pose3 = random_pose()
 T_co = T_co.matrix()
-T_co[:3, 3] += np.array((0, 0, 1)) * 10000.0
+T_co[:3, 3] += np.array((0, 0, 1)) * 5.0
 T_co = gtsam.Pose3(T_co)
 Q_cc = random_cov()
 Q_oo = random_cov()
-Q_oo = np.zeros((6, 6))
-a = Q_cc[:3, :3]
-Q_cc = np.zeros((6, 6))
-Q_cc[:3, :3] = a
+# Q_oo = np.zeros((6, 6))
+# a = Q_cc[:3, :3]
+# Q_cc = np.zeros((6, 6))
+# Q_cc[:3, :3] = a
 
 # Q_cc = np.eye(6)*0.001
 # Q_cc[:3, :3] = 0
@@ -60,6 +60,13 @@ def skew_sym(v):
 # T_wb = f(T_wc, T_cb)
 
 T_wo = T_wc * T_co
+t_wo = np.eye(4)
+t_wo[:3, 3] = T_wo.translation()
+t_wo = gtsam.Pose3(t_wo)
+R_wo = np.eye(4)
+R_wo[:3, :3] = T_wo.rotation().matrix()
+R_wo = gtsam.Pose3(R_wo)
+
 # Question: what's Q_cb, the covariance of T_cb?
 
 # Jacobians of T_cb with respect to T_wc and T_wb
@@ -97,22 +104,57 @@ Q_co = np.zeros((6, 6))
 Q_co[3:6, 3:6] = S @ Q_cc[:3, :3] @ S.T
 Q_ww_2 = T_wc.AdjointMap() @ (Q_cc + T_co.AdjointMap() @ Q_oo @ T_co.AdjointMap().T + Q_co) @ T_wc.AdjointMap().T
 Q_ww_3 = T_wc.AdjointMap() @ Q_cc @ T_wc.AdjointMap().T + T_wo.AdjointMap() @ Q_oo @ T_wo.AdjointMap().T
+Q_ww_4 = (R_wo*T_co.inverse()).AdjointMap() @ Q_cc @ (R_wo*T_co.inverse()).AdjointMap().T + R_wo.AdjointMap() @ Q_oo @ R_wo.AdjointMap().T
 
-fig, ax = plt.subplots(1,2,figsize=(10,10),subplot_kw=dict(projection='3d'))
 
-N_samples = int(1e3)  # no difference above
+N_samples = int(1e4)  # no difference above
 nu_ww_arr = np.zeros((N_samples,6))
 # points = np.zeros(((N_samples,3)))
 print(f'Monte Carlo Sampling N_samples={N_samples}')
+fig, ax = plt.subplots(1,figsize=(10,10),subplot_kw=dict(projection='3d'))
+plotter_R = Plotter(ax)
+
 for i in range(N_samples):
     if i % 1e4 == 0:
         print(f'{100*(i/N_samples)} %')
     T_cc_n = sample_se3(Q_cc)
     T_oo_n = sample_se3(Q_oo)
-    T_ww_n = T_wc * T_cc_n * T_co * T_oo_n * T_wo.inverse()
+
+    T_ww_n = gtsam.Pose3(t_wo).inverse() * T_wc * T_cc_n * T_co * T_oo_n * gtsam.Pose3(R_wo).inverse()
     a = T_ww_n.matrix()
     b = (T_wc * T_cc_n * T_co * T_oo_n).matrix()
     c = T_wo.matrix()
+
+    # plotter_R.plot_T(gtsam.Pose3.Identity())
+    # plotter_R.plot_text(gtsam.Pose3.Identity(), "0")
+    #
+    # plotter_R.plot_T(T_wc)
+    # plotter_R.plot_text(T_wc, "T_wc")
+    # plotter_R.plot_line(gtsam.Pose3.Identity(), T_wc)
+    #
+    # plotter_R.plot_T(T_wc * T_cc_n)
+    # plotter_R.plot_text(T_wc * T_cc_n, "T_wc_n")
+    # plotter_R.plot_line(T_wc, T_wc * T_cc_n)
+    #
+    # plotter_R.plot_T(T_wc * T_cc_n * T_co)
+    # plotter_R.plot_text(T_wc * T_cc_n * T_co, "T_wo_n")
+    # plotter_R.plot_line(T_wc * T_cc_n, T_wc * T_cc_n * T_co)
+    #
+    # plotter_R.plot_T(T_wc * T_cc_n * T_co * T_oo_n)
+    # plotter_R.plot_text(T_wc * T_cc_n * T_co * T_oo_n, "T_wo_nn")
+    # plotter_R.plot_line(T_wc * T_cc_n * T_co, T_wc * T_cc_n * T_co * T_oo_n)
+    #
+    # plotter_R.plot_T(T_ww_n)
+    # plotter_R.plot_text(T_ww_n, "T_ww_n")
+    # plotter_R.plot_line(gtsam.Pose3.Identity(), T_ww_n, color='b')
+    #
+    # if i == 0:
+    #     plotter_R.plot_T(T_wo)
+    #     plotter_R.plot_text(T_wo, "T_wo")
+    #     plotter_R.plot_line(gtsam.Pose3.Identity(), T_wo, color='r')
+    # if i == 10:
+    #     plt.show()
+
     # nu_wo = gtsam.Pose3.Logmap(T_wo * T_wo_n.inverse())  # local
     nu_ww = gtsam.Pose3.Logmap(T_ww_n)  # global
     # nu_wo = gtsam.Pose3.Logmap(T_wo_n)
@@ -128,4 +170,5 @@ def frobenius_norm(Q1, Q2):
 
 print(f"1: {frobenius_norm(Q_ww_num, Q_ww_1)}")
 print(f"2: {frobenius_norm(Q_ww_num, Q_ww_2)}")
+print(f"4: {frobenius_norm(Q_ww_num, Q_ww_4)}")
 print('')

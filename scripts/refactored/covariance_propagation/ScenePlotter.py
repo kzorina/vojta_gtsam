@@ -7,7 +7,7 @@ class Plotter:
 
     def __init__(self, ax:plt.axis):
         self.ax:plt.axis = ax
-        size = 1.5
+        size = 5
         offset = (0, 0, 0.5)
         self.x_lim = (-size/2 + offset[0], size/2 + offset[0])
         self.y_lim = (-size/2 + offset[0], size/2 + offset[0])
@@ -61,6 +61,11 @@ class Plotter:
 
     def plot_points(self, points):
         self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], c = 'b', marker='o')
+
+    def plot_line(self, T1:gtsam.Pose3, T2:gtsam.Pose3, color='g'):
+        t1 = T1.translation()
+        t2 = T2.translation()
+        self.ax.plot([t1[0], t2[0]], [t1[1], t2[1]], zs=[t1[2], t2[2]], color=color)
 
     def set_camera_view(self, x=0, y=0,z=0):
 

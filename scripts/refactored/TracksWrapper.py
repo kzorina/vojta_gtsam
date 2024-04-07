@@ -37,9 +37,18 @@ class Camera:
         self.parent.factor_graph.inser_estimate(self.get_symbol(), T_wc)
         self.cached_attributes["T_wo_init"][0] = self.parent.update_stamp
         self.cached_attributes["T_wo_init"][1] = T_wc
+        self.cached_attributes["Q_init"][0] = self.parent.update_stamp
+        self.cached_attributes["Q_init"][1] = Q
 
     def get_T_wc_init(self) -> gtsam.Pose3:
         attribute_name = "T_wo_init"
+        if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
+            self.cached_attributes[attribute_name][0] = self.parent.update_stamp
+            self.cached_attributes[attribute_name][1] = None
+        return self.cached_attributes[attribute_name][1]
+
+    def get_Q_init(self) -> gtsam.Pose3:
+        attribute_name = "Q_init"
         if self.cached_attributes[attribute_name][0] < self.parent.update_stamp:
             self.cached_attributes[attribute_name][0] = self.parent.update_stamp
             self.cached_attributes[attribute_name][1] = None
@@ -111,14 +120,19 @@ class Track:
             self.cached_derivatives[order][1] = self.parent.factor_graph.current_estimate.atVector(self.get_derivative_symbol(order))
         return self.cached_derivatives[order][1]
 
-    def get_Q_derivative(self, order) -> np.ndarray:
+    def get_Q_derivative(self, order) -> np.ndarray:  # in the world frame
         if order == self.max_order_derivative + 1:
             return self.get_highest_derivative_Q(1)
         if order >= self.num_detected:
             return np.eye(6)
         if self.cached_Q_derivatives[order][0] < self.parent.update_stamp:
             self.cached_Q_derivatives[order][0] = self.parent.update_stamp
-            self.cached_Q_derivatives[order][1] = self.parent.factor_graph.marginalCovariance(self.get_derivative_symbol(order))
+            Q = self.parent.factor_graph.marginalCovariance(self.get_derivative_symbol(order))
+            T_wo = self.get_T_wo_init()
+            R_wo = np.eye(4)
+            R_wo[:3, :3] = T_wo.rotation().matrix()
+            R_wo = gtsam.Pose3(R_wo)
+            self.cached_Q_derivatives[order][1] = R_wo.AdjointMap() @ Q @ R_wo.AdjointMap().T
         return self.cached_Q_derivatives[order][1]
 
     def get_bare_track(self):
@@ -226,18 +240,28 @@ class Tracks:
         """
         D = np.full((len(tracks), len(detections)), np.inf, dtype=float)
         T_wc:gtsam.Pose3 = self.camera.get_T_wc_init()
+        Q_cc = self.camera.get_Q_init()
         for i in range(len(tracks)):
             track: Track = tracks[i]
             bare_track = track.get_bare_track()
-            T_wo, Q_oo = bare_track.extrapolate(time_stamp)
+            T_wo, Q_wo = bare_track.extrapolate(time_stamp)
+            W_wo = gtsam.Pose3.Logmap(T_wo.inverse())
             T_co_track:gtsam.Pose3 = T_wc.inverse() * T_wo
+
             # Q_wo_track =
             for j in range(len(detections)):
                 T_co_detection = gtsam.Pose3(detections[j]["T_co"])
-                Q_co_detection = detections[j]["Q"]
+                Q_oo_detection = detections[j]["Q"]
                 T_oo = T_co_track.inverse() * T_co_detection
-                w = gtsam.Pose3.Logmap(T_oo.inverse())
-                D[i, j] = mahalanobis_distance(w, Q_co_detection)
+                T_wo_detection = T_wc * T_co_detection
+                R_wo_detection = np.eye(4)
+                R_wo_detection[:3, :3] = T_wo_detection.rotation().matrix()
+                R_wo_detection = gtsam.Pose3(R_wo_detection)
+                Q_wo_detection = (R_wo_detection * T_co_detection.inverse()).AdjointMap() @ Q_cc @ (R_wo_detection * T_co_detection.inverse()).AdjointMap().T + R_wo_detection.AdjointMap() @ Q_oo_detection @ R_wo_detection.AdjointMap().T
+                W_wo_detection = gtsam.Pose3.Logmap(T_wo_detection.inverse())
+                w = gtsam.Pose3.Logmap(T_wo_detection.inverse())
+                # D[i, j] = mahalanobis_distance(T_oo, Q_oo_detection)
+                D[i, j] = bhattacharyya_distance(W_wo, W_wo_detection, Q_wo, Q_wo_detection)
         return D
 
     def get_tracks_matches(self, obj_label, detections, time_stamp):

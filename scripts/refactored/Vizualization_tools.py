@@ -5,6 +5,8 @@ from ScenePlotter import Plotter
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider, Button, RadioButtons
+from State import State, BareTrack
+import numpy as np
 
 def display_factor_graph(factor_keyed:dict, variable_keyed:dict, SYMBOL_GAP = 10**6):
 
@@ -73,10 +75,11 @@ def animate_refinement(refined_scene, scene_gt=None, scene_camera=None):
                     T_co:gtsam.Pose3 = gtsam.Pose3(track['T_co'])
                     T_wc:gtsam.Pose3 = gtsam.Pose3(track['T_wc'])
                     T_wo:gtsam.Pose3 = T_wc * T_co
-                    Q_o = track['Q'][3:6, 3:6]  # covariance in the reference frame of the object
-                    R = T_wo.matrix()[:3, :3]
-                    Q_w = R @ Q_o @ R.T
-                    plotter.plot_Q(Q_w*1000, T_wo)
+                    Q_w = track['Q'] # covariance in the reference frame of the object
+                    # R = T_wo.matrix()[:3, :3]
+                    # Q_w = R @ Q_o @ R.T
+                    plotter.plot_Q(Q_w[3:6, 3:6]*1000, T_wo)
+                    plotter.plot_Q(Q_w[:3, :3]*10, T_wo, color='orange')
                     plotter.plot_T(T_wo)
         if scene_gt is not None:
             for obj_label in scene_gt[num]:
@@ -96,8 +99,40 @@ def animate_refinement(refined_scene, scene_gt=None, scene_camera=None):
     axhauteur = plt.axes([0.2, 0.1, 0.65, 0.03])
     slider = Slider(axhauteur, 'frame', 0, len(refined_scene) - 1, valinit=0)
     slider.on_changed(update_view)
+    update_view(None)
     # ani = animation.FuncAnimation(fig, update_view, len(refined_scene), fargs=(refined_scene, plotter), interval=100)
 
+
+    # plotter.set_camera_view()
+    plt.show()
+
+
+def animate_state(state, initial_time_stamp):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    plotter = Plotter(ax)
+
+    def update_view(val):
+        plotter.reset_default_lim()
+        num = slider.val
+        plotter.clear()
+        time_stamp = initial_time_stamp + num
+        for obj_label in state.bare_tracks:
+            for obj_idx in range(len(state.bare_tracks[obj_label])):
+                bare_track:BareTrack = state.bare_tracks[obj_label][obj_idx]
+                T_wo, Q_w = bare_track.extrapolate(time_stamp)
+
+                if np.linalg.det(Q_w[3:6, 3:6])**(1/3) < 0.1 and np.linalg.det(Q_w[:3, :3])**(1/3) < 1:
+                    plotter.plot_Q(Q_w[3:6, 3:6]*100, T_wo)
+                    plotter.plot_Q(Q_w[:3, :3]*1, T_wo, color='orange')
+                    plotter.plot_T(T_wo)
+                    plotter.plot_T(T_wo, alpha=0.3, size=0.3)
+
+    axhauteur = plt.axes([0.2, 0.1, 0.65, 0.03])
+    slider = Slider(axhauteur, 'dt', 0, 1, valinit=0)
+    slider.on_changed(update_view)
+    update_view(None)
+    # ani = animation.FuncAnimation(fig, update_view, len(refined_scene), fargs=(refined_scene, plotter), interval=100)
 
     # plotter.set_camera_view()
     plt.show()

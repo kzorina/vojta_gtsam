@@ -8,7 +8,7 @@ import utils
 from utils import load_scene_camera, load_pickle, merge_T_cos_px_counts
 from SamWrapper import SamWrapper
 from GlobalParams import GlobalParams
-from Vizualization_tools import display_factor_graph, animate_refinement
+from Vizualization_tools import display_factor_graph, animate_refinement, animate_state
 
 
 
@@ -45,6 +45,7 @@ def refine_scene(scene_camera, frames_prediction, px_counts, params:GlobalParams
         detections = merge_T_cos_px_counts(frames_prediction[i], px_counts[i])  # T_co and Q for all detected object in a frame.
         sam.insert_detections({"T_wc":T_wc, "Q":Q_T_wc}, detections, time_stamp)
         current_state = sam.get_state()
+        # animate_state(current_state, time_stamp)
         refined_scene.append(current_state.get_extrapolated_state(time_stamp, T_wc))
         # display_factor_graph(*utils.parse_variable_index(sam.tracks.factor_graph.isams[sam.tracks.factor_graph.active_chunk].getVariableIndex()))
         # time.sleep(1)
