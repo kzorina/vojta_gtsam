@@ -5,6 +5,7 @@ from ScenePlotter import Plotter
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 from collections import defaultdict
+from GlobalParams import GlobalParams
 
 class BareTrack:
     def __init__(self, idx, T_wo:gtsam.Pose3, Q:np.ndarray, derivatives:np.ndarray, Q_derivatives:np.ndarray, time_stamp:float, extrapolation_function=None):
@@ -43,12 +44,23 @@ class BareTrack:
         return new_T_wo, new_Q
 
 class State:
-    def __init__(self):
+    def __init__(self, params:GlobalParams):
         self.bare_tracks = defaultdict(list)
+        self.params:GlobalParams = params
         pass
 
     def add_bare_track(self, obj_label, bare_track):
         self.bare_tracks[obj_label].append(bare_track)
+
+    @staticmethod
+    def is_valid(Q, t_validity_treshold, R_validity_treshold):
+        # R_det = np.linalg.det(Q[:3, :3]) ** 0.5
+        # t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
+        R_det = np.linalg.det(Q[:3, :3]) ** (1 / 3)
+        t_det = np.linalg.det(Q[3:6, 3:6]) ** (1 / 3)
+        if t_det < t_validity_treshold and R_det < R_validity_treshold:
+            return True
+        return False
 
     def get_extrapolated_state(self, time_stamp, T_wc:gtsam.Pose3):
         ret = {}
@@ -59,12 +71,13 @@ class State:
                 T_wo, Q = bare_track.extrapolate(time_stamp)
                 T_co: gtsam.Pose3 = gtsam.Pose3(T_wc).inverse() * T_wo
                 idx = bare_track.idx
+                validity = State.is_valid(Q, self.params.t_validity_treshold, self.params.R_validity_treshold)
                 ret[obj_label].append({"T_wo": T_wo.matrix(),
                                        "T_wc": T_wc.matrix(),
                                        "T_co": T_co.matrix(),
                                        "id": idx,
                                        "Q": Q,
-                                       "valid": None})
+                                       "valid": validity})
         return ret
 
 

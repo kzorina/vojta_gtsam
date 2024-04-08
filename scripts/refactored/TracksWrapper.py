@@ -5,7 +5,7 @@ from gtsam import Symbol
 from gtsam.symbol_shorthand import B, V, X, L
 from FactorGraphWrapper import FactorGraphWrapper
 from GlobalParams import GlobalParams
-from distribution_distances import mahalanobis_distance, bhattacharyya_distance
+from distribution_distances import mahalanobis_distance, bhattacharyya_distance, euclidean_distance
 from collections import defaultdict
 import custom_odom_factors
 from functools import partial
@@ -128,11 +128,13 @@ class Track:
         if self.cached_Q_derivatives[order][0] < self.parent.update_stamp:
             self.cached_Q_derivatives[order][0] = self.parent.update_stamp
             Q = self.parent.factor_graph.marginalCovariance(self.get_derivative_symbol(order))
-            T_wo = self.get_T_wo_init()
-            R_wo = np.eye(4)
-            R_wo[:3, :3] = T_wo.rotation().matrix()
-            R_wo = gtsam.Pose3(R_wo)
-            self.cached_Q_derivatives[order][1] = R_wo.AdjointMap() @ Q @ R_wo.AdjointMap().T
+            if order == 0:  # express in world frame
+                T_wo = self.get_T_wo_init()
+                R_wo = np.eye(4)
+                R_wo[:3, :3] = T_wo.rotation().matrix()
+                R_wo = gtsam.Pose3(R_wo)
+                Q = R_wo.AdjointMap() @ Q @ R_wo.AdjointMap().T
+            self.cached_Q_derivatives[order][1] = Q
         return self.cached_Q_derivatives[order][1]
 
     def get_bare_track(self):
@@ -234,7 +236,7 @@ class Tracks:
         self.tracks[obj_label].add(new_track)
         return new_track
 
-    def calculate_D(self, tracks, detections, time_stamp):
+    def calculate_D(self, tracks, detections, time_stamp, distamce_type='b'):
         """
         Calculates a 2d matrix containing distances between each new and old object estimates
         """
@@ -260,19 +262,27 @@ class Tracks:
                 Q_wo_detection = (R_wo_detection * T_co_detection.inverse()).AdjointMap() @ Q_cc @ (R_wo_detection * T_co_detection.inverse()).AdjointMap().T + R_wo_detection.AdjointMap() @ Q_oo_detection @ R_wo_detection.AdjointMap().T
                 W_wo_detection = gtsam.Pose3.Logmap(T_wo_detection.inverse())
                 w = gtsam.Pose3.Logmap(T_wo_detection.inverse())
-                # D[i, j] = mahalanobis_distance(T_oo, Q_oo_detection)
-                D[i, j] = bhattacharyya_distance(W_wo, W_wo_detection, Q_wo, Q_wo_detection)
+                if distamce_type == 'e':
+                    D[i, j] = euclidean_distance(T_wo, T_wo_detection)
+                if distamce_type == 'm':
+                    # D[i, j] = mahalanobis_distance(T_oo, Q_oo_detection)
+                    raise Exception(f"not implemented yet")
+                if distamce_type == 'b':
+                    D[i, j] = bhattacharyya_distance(W_wo, W_wo_detection, Q_wo, Q_wo_detection)
         return D
 
     def get_tracks_matches(self, obj_label, detections, time_stamp):
         assignment = [None for i in range(len(detections))]
         tracks = list(self.tracks[obj_label])
-        D = self.calculate_D(tracks, detections, time_stamp)
-        for i in range(min(D.shape[0], D.shape[1])):
-            arg_min = np.unravel_index(np.argmin(D, axis=None), D.shape)
-            minimum = D[arg_min]
-            D[arg_min[0], :] = np.full((D.shape[1]), np.inf)
-            D[:, arg_min[1]] = np.full((D.shape[0]), np.inf)
+        D_match = self.calculate_D(tracks, detections, time_stamp, 'e')
+        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'b')
+        print(f"D_match:{D_match}, D_outlier:{D_outlier}")
+        for i in range(min(D_match.shape[0], D_match.shape[1])):
+            arg_min = np.unravel_index(np.argmin(D_match, axis=None), D_match.shape)
+            # minimum = D_match[arg_min]
+            minimum = D_outlier[arg_min]
+            D_match[arg_min[0], :] = np.full((D_match.shape[1]), np.inf)
+            D_match[:, arg_min[1]] = np.full((D_match.shape[0]), np.inf)
             if minimum < self.params.outlier_rejection_treshold:
                 assignment[i] = tracks[arg_min[0]]
         return assignment

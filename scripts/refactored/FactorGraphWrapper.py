@@ -22,7 +22,7 @@ class FactorGraphWrapper:
             self.active_graphs.append(gtsam.NonlinearFactorGraph())
 
 
-    def add_factor(self, factor:gtsam.Factor):
+    def add_factor(self, factor):
         self.new_graph.add(factor)
         a = np.array(factor.keys()) - L(0)
         if np.isin(2010001, a):

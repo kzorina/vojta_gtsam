@@ -1,5 +1,5 @@
 import numpy as np
-
+import gtsam
 
 def mahalanobis_distance(x, covariance):
     assert (x.shape[0] == covariance.shape[0])
@@ -31,3 +31,15 @@ def bhattacharyya_distance(a, b, Q_a, Q_b):
     Q_b_det = np.linalg.det(Q_b)
     v = (a - b)
     return (v@Q_inv@v)/8 + np.log(Q_det/(np.sqrt(Q_a_det*Q_b_det)))/2
+
+def euclidean_distance(T_wa:gtsam.Pose3, T_wb:gtsam.Pose3):
+    T_ab:gtsam.Pose3 = T_wa.inverse() * T_wb
+    t = T_ab.translation()
+    w = gtsam.Rot3.Logmap(T_ab.rotation())
+    return np.linalg.norm(t) + np.linalg.norm(w)/20
+
+if __name__ == "__main__":
+    T1 = gtsam.Pose3(np.eye(4))
+    T2 = gtsam.Pose3(np.eye(4))
+    b = euclidean_distance(T1, T2)
+    print(b)

@@ -40,10 +40,10 @@ T_co[:3, 3] += np.array((0, 0, 1)) * 5.0
 T_co = gtsam.Pose3(T_co)
 Q_cc = random_cov()
 Q_oo = random_cov()
-# Q_oo = np.zeros((6, 6))
-# a = Q_cc[:3, :3]
-# Q_cc = np.zeros((6, 6))
-# Q_cc[:3, :3] = a
+Q_oo = np.zeros((6, 6))
+a = Q_cc[:3, :3]
+Q_cc = np.zeros((6, 6))
+Q_cc[:3, :3] = a
 
 # Q_cc = np.eye(6)*0.001
 # Q_cc[:3, :3] = 0
@@ -121,39 +121,40 @@ for i in range(N_samples):
     T_oo_n = sample_se3(Q_oo)
 
     T_ww_n = gtsam.Pose3(t_wo).inverse() * T_wc * T_cc_n * T_co * T_oo_n * gtsam.Pose3(R_wo).inverse()
+    # T_ww_n = T_wc * T_cc_n * T_co * T_oo_n * T_wo.inverse()
     a = T_ww_n.matrix()
     b = (T_wc * T_cc_n * T_co * T_oo_n).matrix()
     c = T_wo.matrix()
 
-    # plotter_R.plot_T(gtsam.Pose3.Identity())
-    # plotter_R.plot_text(gtsam.Pose3.Identity(), "0")
-    #
-    # plotter_R.plot_T(T_wc)
-    # plotter_R.plot_text(T_wc, "T_wc")
-    # plotter_R.plot_line(gtsam.Pose3.Identity(), T_wc)
-    #
-    # plotter_R.plot_T(T_wc * T_cc_n)
-    # plotter_R.plot_text(T_wc * T_cc_n, "T_wc_n")
-    # plotter_R.plot_line(T_wc, T_wc * T_cc_n)
-    #
-    # plotter_R.plot_T(T_wc * T_cc_n * T_co)
-    # plotter_R.plot_text(T_wc * T_cc_n * T_co, "T_wo_n")
-    # plotter_R.plot_line(T_wc * T_cc_n, T_wc * T_cc_n * T_co)
-    #
-    # plotter_R.plot_T(T_wc * T_cc_n * T_co * T_oo_n)
-    # plotter_R.plot_text(T_wc * T_cc_n * T_co * T_oo_n, "T_wo_nn")
-    # plotter_R.plot_line(T_wc * T_cc_n * T_co, T_wc * T_cc_n * T_co * T_oo_n)
-    #
-    # plotter_R.plot_T(T_ww_n)
-    # plotter_R.plot_text(T_ww_n, "T_ww_n")
-    # plotter_R.plot_line(gtsam.Pose3.Identity(), T_ww_n, color='b')
-    #
-    # if i == 0:
-    #     plotter_R.plot_T(T_wo)
-    #     plotter_R.plot_text(T_wo, "T_wo")
-    #     plotter_R.plot_line(gtsam.Pose3.Identity(), T_wo, color='r')
-    # if i == 10:
-    #     plt.show()
+    plotter_R.plot_T(gtsam.Pose3(np.eye(4)))
+    plotter_R.plot_text(gtsam.Pose3(np.eye(4)), "0")
+
+    plotter_R.plot_T(T_wc)
+    plotter_R.plot_text(T_wc, "T_wc")
+    plotter_R.plot_line(gtsam.Pose3(np.eye(4)), T_wc)
+
+    plotter_R.plot_T(T_wc * T_cc_n)
+    plotter_R.plot_text(T_wc * T_cc_n, "T_wc_n")
+    plotter_R.plot_line(T_wc, T_wc * T_cc_n)
+
+    plotter_R.plot_T(T_wc * T_cc_n * T_co)
+    plotter_R.plot_text(T_wc * T_cc_n * T_co, "T_wo_n")
+    plotter_R.plot_line(T_wc * T_cc_n, T_wc * T_cc_n * T_co)
+
+    plotter_R.plot_T(T_wc * T_cc_n * T_co * T_oo_n)
+    plotter_R.plot_text(T_wc * T_cc_n * T_co * T_oo_n, "T_wo_nn")
+    plotter_R.plot_line(T_wc * T_cc_n * T_co, T_wc * T_cc_n * T_co * T_oo_n)
+
+    plotter_R.plot_T(T_ww_n)
+    plotter_R.plot_text(T_ww_n, "T_ww_n")
+    plotter_R.plot_line(gtsam.Pose3(np.eye(4)), T_ww_n, color='b')
+
+    if i == 0:
+        plotter_R.plot_T(T_wo)
+        plotter_R.plot_text(T_wo, "T_wo")
+        plotter_R.plot_line(gtsam.Pose3(np.eye(4)), T_wo, color='r')
+    if i == 10:
+        plt.show()
 
     # nu_wo = gtsam.Pose3.Logmap(T_wo * T_wo_n.inverse())  # local
     nu_ww = gtsam.Pose3.Logmap(T_ww_n)  # global

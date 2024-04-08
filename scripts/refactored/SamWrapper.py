@@ -12,7 +12,7 @@ class SamWrapper:
         pass
 
     def get_state(self):
-        state = State()
+        state = State(self.params)
         for obj_label in self.tracks.tracks:
             for track in self.tracks.tracks[obj_label]:
                 bare_track = track.get_bare_track()
