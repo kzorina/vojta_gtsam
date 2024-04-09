@@ -45,3 +45,18 @@ rapid_tracking = GlobalParams(translation_dist_weight=0.5,
                                     hysteresis_coef=1,
                                     velocity_prior_sigma=10,
                                     max_derivative_order = 2)
+
+robust_tracking = GlobalParams(translation_dist_weight=0.5,
+                                    mod=1,
+                                    chunk_size = 20,
+                                    cov_drift_lin_vel=0.0004,
+                                    cov_drift_ang_vel=0.04,
+                                    cov2_t=0.0000000001,
+                                    cov2_R=0.0000000001,
+                                    max_track_age = 1.0,
+                                    outlier_rejection_treshold=20,
+                                    t_validity_treshold=0.0008,
+                                    R_validity_treshold=0.08,
+                                    hysteresis_coef=1,
+                                    velocity_prior_sigma=10,
+                                    max_derivative_order = 2)

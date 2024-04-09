@@ -120,7 +120,13 @@ for i in range(N_samples):
     T_cc_n = sample_se3(Q_cc)
     T_oo_n = sample_se3(Q_oo)
 
-    T_ww_n = gtsam.Pose3(t_wo).inverse() * T_wc * T_cc_n * T_co * T_oo_n * gtsam.Pose3(R_wo).inverse()
+    # T_ww_n = gtsam.Pose3(t_wo).inverse() * T_wc * T_cc_n * T_co * T_oo_n * gtsam.Pose3(R_wo).inverse()
+
+    T_ww_n = (T_wc * T_cc_n * T_co * T_oo_n).matrix()
+    T_ww_n[:3, 3] = T_ww_n[:3, 3] - t_wo.translation()
+    T_ww_n[:3, :3] = R_wo.rotation().inverse().matrix() @ T_ww_n[:3, 3]
+    T_ww_n = gtsam.Pose3(T_ww_n)
+
     # T_ww_n = T_wc * T_cc_n * T_co * T_oo_n * T_wo.inverse()
     a = T_ww_n.matrix()
     b = (T_wc * T_cc_n * T_co * T_oo_n).matrix()

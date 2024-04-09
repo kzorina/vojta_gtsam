@@ -219,7 +219,7 @@ class Tracks:
         self.last_time_stamp = None
 
         self.SYMBOL_GAP = 10 ** 10
-        self.DERIVATIVE_SYMBOL_GAP = 10**2  #  the highest order of a derivative that can be used for a track
+        self.DERIVATIVE_SYMBOL_GAP = 10**2  # the highest order of a derivative that can be used for a track
 
 
     def remove_expired_tracks(self, current_time_stamp):
@@ -236,7 +236,7 @@ class Tracks:
         self.tracks[obj_label].add(new_track)
         return new_track
 
-    def calculate_D(self, tracks, detections, time_stamp, distamce_type='b'):
+    def calculate_D(self, tracks, detections, time_stamp, distamce_type='m'):
         """
         Calculates a 2d matrix containing distances between each new and old object estimates
         """
@@ -247,9 +247,8 @@ class Tracks:
             track: Track = tracks[i]
             bare_track = track.get_bare_track()
             T_wo, Q_wo = bare_track.extrapolate(time_stamp)
-            W_wo = gtsam.Pose3.Logmap(T_wo.inverse())
-            T_co_track:gtsam.Pose3 = T_wc.inverse() * T_wo
 
+            T_co_track:gtsam.Pose3 = T_wc.inverse() * T_wo
             # Q_wo_track =
             for j in range(len(detections)):
                 T_co_detection = gtsam.Pose3(detections[j]["T_co"])
@@ -260,22 +259,31 @@ class Tracks:
                 R_wo_detection[:3, :3] = T_wo_detection.rotation().matrix()
                 R_wo_detection = gtsam.Pose3(R_wo_detection)
                 Q_wo_detection = (R_wo_detection * T_co_detection.inverse()).AdjointMap() @ Q_cc @ (R_wo_detection * T_co_detection.inverse()).AdjointMap().T + R_wo_detection.AdjointMap() @ Q_oo_detection @ R_wo_detection.AdjointMap().T
-                W_wo_detection = gtsam.Pose3.Logmap(T_wo_detection.inverse())
+                # W_wo_detection = gtsam.Pose3.Logmap(T_wo_detection)
+
+                W_ww = np.zeros(6)
+                W_ww[:3] = gtsam.Rot3.Logmap(T_wo_detection.rotation().inverse() * T_wo.rotation())
+                W_ww[3:6] = T_wo.translation() - T_wo_detection.translation()
+
+                W_ww_detection = np.zeros(6)
+                W_ww_detection[:3] = gtsam.Rot3.Logmap(T_wo.rotation().inverse() * T_wo_detection.rotation())
+                W_ww_detection[3:6] = T_wo_detection.translation() - T_wo.translation()
+
                 w = gtsam.Pose3.Logmap(T_wo_detection.inverse())
                 if distamce_type == 'e':
                     D[i, j] = euclidean_distance(T_wo, T_wo_detection)
                 if distamce_type == 'm':
-                    # D[i, j] = mahalanobis_distance(T_oo, Q_oo_detection)
-                    raise Exception(f"not implemented yet")
-                if distamce_type == 'b':
-                    D[i, j] = bhattacharyya_distance(W_wo, W_wo_detection, Q_wo, Q_wo_detection)
+                    D[i, j] = min(mahalanobis_distance(W_ww, Q_wo_detection), mahalanobis_distance(W_ww_detection, Q_wo))
+                    # raise Exception(f"not implemented yet")
+                # if distamce_type == 'b':
+                #     D[i, j] = bhattacharyya_distance(W_wo, W_wo_detection, Q_wo, Q_wo_detection)
         return D
 
     def get_tracks_matches(self, obj_label, detections, time_stamp):
         assignment = [None for i in range(len(detections))]
         tracks = list(self.tracks[obj_label])
         D_match = self.calculate_D(tracks, detections, time_stamp, 'e')
-        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'b')
+        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'm')
         print(f"D_match:{D_match}, D_outlier:{D_outlier}")
         for i in range(min(D_match.shape[0], D_match.shape[1])):
             arg_min = np.unravel_index(np.argmin(D_match, axis=None), D_match.shape)
