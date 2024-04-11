@@ -26,7 +26,6 @@ def __refresh_dir(path):
         shutil.rmtree(path, ignore_errors=False, onerror=None)
     os.makedirs(path)
 
-
 def recalculate_validity(results, t_validity_treshold, R_validity_treshold):
     recalculated_results = {}
     for result_key in results:
@@ -55,10 +54,7 @@ def refine_data(scene_camera, frames_prediction, px_counts, params:GlobalParams)
         detections = merge_T_cos_px_counts(frames_prediction[i], px_counts[i])  # T_co and Q for all detected object in a frame.
         sam.insert_detections({"T_wc":T_wc, "Q":Q_T_wc}, detections, time_stamp)
         current_state = sam.get_state()
-        # animate_state(current_state, time_stamp, white_list=["Corn"])
-        # if i > 40:
-        #     print('')
-
+        # animate_state(current_state, time_stamp)
         refined_scene.append(current_state.get_extrapolated_state(time_stamp, T_wc))
         # display_factor_graph(*utils.parse_variable_index(sam.tracks.factor_graph.isams[sam.tracks.factor_graph.active_chunk].getVariableIndex()))
         # time.sleep(1)
@@ -81,14 +77,14 @@ def anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, params, dataset_type='h
         results[scene_num] = refined_scene
         with open(scene_path / 'frames_refined_prediction.p', 'wb') as file:
             pickle.dump(refined_scene, file)
-    # for tvt in [0.5, 1, 2]:
-    #     for rvt in [0.5, 1, 2]:
-    #         recalculated_results = recalculate_validity(results, params.t_validity_treshold,params.R_validity_treshold)
-    #         forked_params = copy.deepcopy(params)
-    #         forked_params.R_validity_treshold = params.R_validity_treshold * rvt
-    #         forked_params.t_validity_treshold = params.t_validity_treshold * tvt
-    #         output_name = f'gtsam_{DATASET_NAME}-test_{str(forked_params)}_.csv'
-    #         export_bop(convert_frames_to_bop(recalculated_results, dataset_type), DATASETS_PATH / DATASET_NAME / "ablation" / output_name)
+    for tvt in [0.75, 1, 1.5]:
+        for rvt in [0.75, 1, 1.5]:
+            forked_params = copy.deepcopy(params)
+            forked_params.R_validity_treshold = params.R_validity_treshold * rvt
+            forked_params.t_validity_treshold = params.t_validity_treshold * tvt
+            recalculated_results = recalculate_validity(results, forked_params.t_validity_treshold, forked_params.R_validity_treshold)
+            output_name = f'gtsam_{DATASET_NAME}-test_{str(forked_params)}_.csv'
+            export_bop(convert_frames_to_bop(recalculated_results, dataset_type), DATASETS_PATH / DATASET_NAME / "ablation" / output_name)
 
 def main():
     start_time = time.time()
@@ -96,28 +92,33 @@ def main():
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     DATASET_NAME = "SynthDynamicOcclusion"
     # scenes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    scenes = [2]
+    scenes = [0, 1, 2]
     pool = multiprocessing.Pool(processes=15)
 
-    # __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
+    __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
     base_params = GlobalParams(
-                                cov_drift_lin_vel=0.0001,
-                                cov_drift_ang_vel=0.001,
-                                outlier_rejection_treshold=8,
-                                t_validity_treshold=2e-5,
-                                R_validity_treshold=0.010,
-                                # t_validity_treshold=1e3,
-                                # R_validity_treshold=1e3,
+                                cov_drift_lin_vel=0.0032,
+                                cov_drift_ang_vel=0.032,
+                                outlier_rejection_treshold=3,
+                                t_validity_treshold=3e-5,
+                                R_validity_treshold=0.013,
                                 max_derivative_order=1)
-    for scene_num in scenes:
-        scene_path = DATASETS_PATH/DATASET_NAME/"test" / f"{scene_num:06}"
-        refined_scene = refine_scene(scene_path, base_params)
-        with open(scene_path / 'frames_refined_prediction.p', 'wb') as file:
-            pickle.dump(refined_scene, file)
-        # refined_scene = load_pickle(DATASETS_PATH/DATASET_NAME/"test"/f"{scene_num:06}"/'frames_refined_prediction.p')
-        scene_gt = utils.load_scene_gt(DATASETS_PATH/DATASET_NAME/"test"/f"{scene_num:06}"/'scene_gt.json', list(utils.HOPE_OBJECT_NAMES.values()))
-        scene_camera = load_scene_camera(DATASETS_PATH/DATASET_NAME/"test"/f"{scene_num:06}" / "scene_camera.json")
-        # animate_refinement(refined_scene, scene_gt, scene_camera)
+    for cdlv in [0.5, 1, 2, 4, 8]:
+        for cdav in [0.5, 1, 2, 4, 8]:
+            for ort in [0.75, 1, 1.5]:
+                forked_params = copy.deepcopy(base_params)
+                forked_params.cov_drift_lin_vel = base_params.cov_drift_lin_vel * cdlv
+                forked_params.cov_drift_ang_vel = base_params.cov_drift_ang_vel * cdav
+                forked_params.outlier_rejection_treshold = base_params.outlier_rejection_treshold * ort
+                pool.apply_async(anotate_dataset, args=(DATASETS_PATH, DATASET_NAME, scenes, forked_params, dataset_type))
+                # anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, forked_params)
+    pool.close()
+    pool.join()
+
+    # refined_scene = load_pickle(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'frames_refined_prediction.p')
+    # scene_gt = utils.load_scene_gt(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'scene_gt.json', list(utils.HOPE_OBJECT_NAMES.values()))
+    # scene_camera = load_scene_camera(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}" / "scene_camera.json")
+    # animate_refinement(refined_scene, scene_gt, scene_camera)
 
     print(f"elapsed time: {time.time() - start_time:.2f}s")
     print(f"elapsed time: {utils.format_time(time.time() - start_time)}")

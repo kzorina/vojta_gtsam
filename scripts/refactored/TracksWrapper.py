@@ -272,7 +272,9 @@ class Tracks:
                 w = gtsam.Pose3.Logmap(T_wo_detection.inverse())
                 if distamce_type == 'e':
                     D[i, j] = euclidean_distance(T_wo, T_wo_detection)
-                if distamce_type == 'm':
+                if distamce_type == 'mahal':
+                    D[i, j] = mahalanobis_distance(W_ww, Q_wo_detection)
+                if distamce_type == 'min_mahal':
                     D[i, j] = min(mahalanobis_distance(W_ww, Q_wo_detection), mahalanobis_distance(W_ww_detection, Q_wo))
                     # raise Exception(f"not implemented yet")
                 # if distamce_type == 'b':
@@ -282,9 +284,9 @@ class Tracks:
     def get_tracks_matches(self, obj_label, detections, time_stamp):
         assignment = [None for i in range(len(detections))]
         tracks = list(self.tracks[obj_label])
-        D_match = self.calculate_D(tracks, detections, time_stamp, 'e')
-        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'm')
-        print(f"D_match:{D_match}, D_outlier:{D_outlier}")
+        D_match = self.calculate_D(tracks, detections, time_stamp, 'mahal')
+        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'mahal')
+        # print(f"D_match:{D_match}, D_outlier:{D_outlier}")
         for i in range(min(D_match.shape[0], D_match.shape[1])):
             arg_min = np.unravel_index(np.argmin(D_match, axis=None), D_match.shape)
             # minimum = D_match[arg_min]
@@ -292,5 +294,9 @@ class Tracks:
             D_match[arg_min[0], :] = np.full((D_match.shape[1]), np.inf)
             D_match[:, arg_min[1]] = np.full((D_match.shape[0]), np.inf)
             if minimum < self.params.outlier_rejection_treshold:
-                assignment[i] = tracks[arg_min[0]]
+                assignment[arg_min[1]] = tracks[arg_min[0]]
+        # if obj_label == "Corn":
+        #     D_match = self.calculate_D(tracks, detections, time_stamp, 'e')
+        #     D_outlier = self.calculate_D(tracks, detections, time_stamp, 'e')
+        #     print('')
         return assignment

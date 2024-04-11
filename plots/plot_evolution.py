@@ -10,6 +10,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
+from matplotlib.widgets import Slider, Button, RadioButtons
 import pinocchio as pin
 
 from utils import (
@@ -21,7 +22,7 @@ from utils import (
 
 DATASET_ROOT = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
 
-ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000000"
+ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000002"
 # ds_path = DATASET_ROOT / "SynthStatic" / "test" / "000000"
 
 frames_refined_prediction = pickle.load(open(ds_path / "frames_refined_prediction.p", "rb"))
@@ -33,16 +34,19 @@ camera_poses = json.load(open(ds_path / "scene_camera.json"))
 # frames_refined_prediction = pickle.load(open("frames_refined_prediction3.p", "rb"))
 
 all_object_labels = set()
-for frame in frames_prediction:
+for frame in scene_gt:
     all_object_labels.update(frame.keys())
 
 all_object_labels = sorted(all_object_labels)
 # for obj_label in all_object_labels:
 # for obj_label in ['BBQSauce', 'Cookies']:
-for obj_label in all_object_labels:
-    fig, ax = plt.subplots(
-        2, 1, squeeze=True, figsize=(3 * 6.4, 4.8)
-    )  # type: plt.Figure, plt.Axes
+
+def refresh_plot(num):
+    ax[0].clear()
+
+    ax[1].clear()
+    trt = slider1.val
+    rrt = slider2.val
     ax[0].set_title(f"Object label: {obj_label}")
     v = compute_t_id_log_err_pairs_for_object(
         frames_prediction, obj_label, camera_poses
@@ -63,10 +67,9 @@ for obj_label in all_object_labels:
 
     if len(v.shape) == 1:
         plt.close(fig)
-        continue
     for i, track_id in enumerate(np.unique(v[:, 1])):
-        # conf = np.bitwise_and(v[:, 5] < 0.0000025,  v[:, 6] < 0.0005)
-        conf = v[:, 4] > .5
+        conf = np.bitwise_and(v[:, 6] < trt,  v[:, 7] < rrt)
+        # conf = v[:, 4] > .5
 
         mask_predicted = np.bitwise_and(v[:, 1] == track_id, conf)
 
@@ -81,20 +84,6 @@ for obj_label in all_object_labels:
             marker="o",
         )
 
-    v = compute_t_id_log_err_pairs_for_object(scene_gt, obj_label, camera_poses)
-    if len(v.shape) == 1:
-        plt.close(fig)
-        continue
-    ax[0].plot(
-        v[:, 0],
-        v[:, 2],
-        label="GT",
-        color="k",
-        linestyle="",
-        marker="x",
-        ms=10,
-        alpha=0.5,
-    )
     ax[0].set_xlabel("Frame id")
     ax[0].set_ylabel("||log3(T.rotation)||")
 
@@ -112,22 +101,53 @@ for obj_label in all_object_labels:
         marker="o",
         ms=10,
     )
+
+    v = compute_t_id_log_err_pairs_for_object(scene_gt, obj_label, camera_poses)
+    if len(v.shape) == 1:
+        plt.close(fig)
+
+    ax[0].plot(
+        v[:, 0],
+        v[:, 2],
+        label="GT",
+        color="k",
+        linestyle="",
+        marker="x",
+        ms=10,
+        alpha=0.5,
+    )
+
+    ax[1].plot(
+        v[:, 0],
+        v[:, 3],
+        label="GT",
+        color="k",
+        linestyle="",
+        marker="x",
+        ms=10,
+        alpha=0.5,
+    )
+
+
+
     v = compute_t_id_log_err_pairs_for_object(
         frames_refined_prediction, obj_label, camera_poses
     )
 
     if len(v.shape) == 1:
         plt.close(fig)
-        continue
+
+
+
     for i, track_id in enumerate(np.unique(v[:, 1])):
-        # conf = np.bitwise_and(v[:, 5] < 0.0000025,  v[:, 6] < 0.0005)
-        conf = v[:, 4] > .5
+        conf = np.bitwise_and(v[:, 6] < trt,  v[:, 7] < rrt)
+        # conf = v[:, 4] > .5
 
         mask_predicted = np.bitwise_and(v[:, 1] == track_id, conf)
 
         mask = mask_predicted
 
-        print(int(track_id))
+        # print(int(track_id))
         ax[1].plot(
             v[mask, 0],
             v[mask, 3],
@@ -140,21 +160,24 @@ for obj_label in all_object_labels:
     v = compute_t_id_log_err_pairs_for_object(scene_gt, obj_label, camera_poses)
     if len(v.shape) == 1:
         plt.close(fig)
-        continue
-    ax[1].plot(
-        v[:, 0],
-        v[:, 3],
-        label="GT",
-        color="k",
-        linestyle="",
-        marker="x",
-        ms=10,
-        alpha=0.5,
-    )
+
     ax[1].set_xlabel("Frame id")
     ax[1].set_ylabel("||T.translation||")
 
+for obj_label in all_object_labels:
+
+    fig, ax = plt.subplots(
+        3, 1, squeeze=True, figsize=(3 * 6.4, 4.8)
+    )  # type: plt.Figure, plt.Axes
+    axhauteur1 = plt.axes([0.2, 0.2, 0.65, 0.03])
+    axhauteur2 = plt.axes([0.2, 0.15, 0.65, 0.03])
+    slider1 = Slider(axhauteur1, 'tvt', 1e-6, 1e-4, valinit=2e-5)
+    slider2 = Slider(axhauteur2, 'rvt', 1e-3, 1e-1, valinit=0.010)
+    slider1.on_changed(refresh_plot)
+    slider2.on_changed(refresh_plot)
+    refresh_plot(None)
+
     # ax.legend()
-    fig.savefig(f"evolution_{obj_label}.png")
+    # fig.savefig(f"evolution_{obj_label}.png")
 
     plt.show()

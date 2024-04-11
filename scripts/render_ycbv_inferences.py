@@ -281,6 +281,23 @@ def load_scene_gt(path, label_list = None):
         parsed_data.append(entry)
     return parsed_data
 
+def draw_track_ids(img, predictions, K):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    for obj_label in predictions:
+        for obj_idx in range(len(predictions[obj_label])):
+            uvw = K@predictions[obj_label][obj_idx]['T_co'][:3, 3]
+            uv = tuple((uvw[:2]/uvw[2]).astype(int))
+            obj_id = predictions[obj_label][obj_idx]['id']
+            cv2.putText(img, str(obj_id), org=tuple(uv), fontFace=font, fontScale=0.5, color=(1, 1, 1), thickness=2, lineType=2)
+
+def draw_detection_ids(img, predictions, K):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    for obj_label in predictions:
+        for obj_idx in range(len(predictions[obj_label])):
+            uvw = K@predictions[obj_label][obj_idx][:3, 3]
+            uv = tuple((uvw[:2]/uvw[2]).astype(int))
+            cv2.putText(img, str(obj_idx), org=tuple(uv), fontFace=font, fontScale=0.5, color=(1, 1, 1), thickness=2, lineType=2)
+
 def main():
     set_logging_level("info")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
@@ -293,7 +310,7 @@ def main():
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
-    SCENES_NAMES = ["000000"]
+    SCENES_NAMES = ["000002"]
 
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)
@@ -317,9 +334,13 @@ def main():
             rgb = np.array(Image.open(dataset_path/"rgb"/img_name), dtype=np.uint8)
             K = scene_camera[i]["cam_K"]
             renderings_gtsam = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
+            gtsam_rgb = renderings_gtsam.rgb
+            draw_track_ids(gtsam_rgb, frames_refined_prediction[i], K)
             renderings_cosypose = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
+            cosypose_rgb = renderings_cosypose.rgb
+            draw_detection_ids(cosypose_rgb, frames_prediction[i], K)
             # save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb])
-            save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb, renderings_gtsam.rgb])
+            save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb, gtsam_rgb])
             print(f"\r({i+1}/{len(img_names)})", end='')
 
 

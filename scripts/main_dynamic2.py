@@ -258,41 +258,41 @@ if __name__ == "__main__":
     pool = multiprocessing.Pool(processes=15)
 
     # for ws in [2, 5, 10, 20]:
-    for mod in [2, 4, 6, 8, 10]:
-        for ws in [20]:
-            for ort in [10]:
-                # for tvt in [0.0000025, 0.000005, 0.00001]:
-                for tvt in [0.000025]:
-                    for Rvt in [0.001]:
-                    # for Rvt in [0.00125, 0.0015, 0.00175]:
-                    #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
-                        for cov_drift_lin_vel in [1]:
-                            # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
-                            for cov_drift_ang_vel in [1]:
-                                for cov2_t in [0.000000001]:
-                                    for cov2_R in [0.000000001]:
-                                    # for hyster in [25, 200, 800]:
-                                        for hyster in [1]:
-                                            sam_settings = SAMSettings(mod=mod,
-                                                                       window_size=ws,
-                                                                       cov_drift_lin_vel=cov_drift_lin_vel,
-                                                                       cov_drift_ang_vel=cov_drift_ang_vel,
-                                                                       cov2_t=cov2_t,
-                                                                       cov2_R=cov2_R,
-                                                                       outlier_rejection_treshold=ort,
-                                                                       t_validity_treshold=tvt,
-                                                                       R_validity_treshold=Rvt,
-                                                                       hysteresis_coef=hyster,
-                                                                       velocity_prior_sigma=10)
-                                            print(f"{mod},{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
-                                            output_name = f'gtsam_{DATASET_NAME}-test_{mod}_{str(sam_settings)}_.csv'
-
-                                            # pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
-                                            anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
-    pool.close()
-    pool.join()
+    # for mod in [2, 4, 6, 8, 10]:
+    #     for ws in [20]:
+    #         for ort in [10]:
+    #             # for tvt in [0.0000025, 0.000005, 0.00001]:
+    #             for tvt in [0.000025]:
+    #                 for Rvt in [0.001]:
+    #                 # for Rvt in [0.00125, 0.0015, 0.00175]:
+    #                 #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
+    #                     for cov_drift_lin_vel in [1]:
+    #                         # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
+    #                         for cov_drift_ang_vel in [1]:
+    #                             for cov2_t in [0.000000001]:
+    #                                 for cov2_R in [0.000000001]:
+    #                                 # for hyster in [25, 200, 800]:
+    #                                     for hyster in [1]:
+    #                                         sam_settings = SAMSettings(mod=mod,
+    #                                                                    window_size=ws,
+    #                                                                    cov_drift_lin_vel=cov_drift_lin_vel,
+    #                                                                    cov_drift_ang_vel=cov_drift_ang_vel,
+    #                                                                    cov2_t=cov2_t,
+    #                                                                    cov2_R=cov2_R,
+    #                                                                    outlier_rejection_treshold=ort,
+    #                                                                    t_validity_treshold=tvt,
+    #                                                                    R_validity_treshold=Rvt,
+    #                                                                    hysteresis_coef=hyster,
+    #                                                                    velocity_prior_sigma=10)
+    #                                         print(f"{mod},{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
+    #                                         output_name = f'gtsam_{DATASET_NAME}-test_{mod}_{str(sam_settings)}_.csv'
+    #
+    #                                         # pool.apply_async(anotate_dataset_parallel_safe, args=(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name))
+    #                                         anotate_dataset_parallel_safe(dataset_type, DATASETS_PATH/DATASET_NAME, datasets, sam_settings, output_name)
+    # pool.close()
+    # pool.join()
 
     # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction_mod6.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
-    merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
+    merge_inferences(DATASET_PATH, [0, 1, 2], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

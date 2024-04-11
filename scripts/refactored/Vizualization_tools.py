@@ -107,7 +107,7 @@ def animate_refinement(refined_scene, scene_gt=None, scene_camera=None):
     plt.show()
 
 
-def animate_state(state, initial_time_stamp):
+def animate_state(state, initial_time_stamp, white_list=None):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     plotter = Plotter(ax)
@@ -118,15 +118,17 @@ def animate_state(state, initial_time_stamp):
         plotter.clear()
         time_stamp = initial_time_stamp + num
         for obj_label in state.bare_tracks:
-            for obj_idx in range(len(state.bare_tracks[obj_label])):
-                bare_track:BareTrack = state.bare_tracks[obj_label][obj_idx]
-                T_wo, Q_w = bare_track.extrapolate(time_stamp)
+            if white_list is not None:
+                if obj_label in white_list:
+                    for obj_idx in range(len(state.bare_tracks[obj_label])):
+                        bare_track:BareTrack = state.bare_tracks[obj_label][obj_idx]
+                        T_wo, Q_w = bare_track.extrapolate(time_stamp)
 
-                if np.linalg.det(Q_w[3:6, 3:6])**(1/3) < 0.1 and np.linalg.det(Q_w[:3, :3])**(1/3) < 1:
-                    plotter.plot_Q(Q_w[3:6, 3:6]*100, T_wo)
-                    plotter.plot_Q(Q_w[:3, :3]*1, T_wo, color='orange')
-                    plotter.plot_T(T_wo)
-                    plotter.plot_T(T_wo, alpha=0.3, size=0.3)
+                        if np.linalg.det(Q_w[3:6, 3:6])**(1/3) < 0.1 and np.linalg.det(Q_w[:3, :3])**(1/3) < 1:
+                            plotter.plot_Q(Q_w[3:6, 3:6]*100, T_wo)
+                            plotter.plot_Q(Q_w[:3, :3]*1, T_wo, color='orange')
+                            plotter.plot_T(T_wo)
+                            plotter.plot_T(T_wo, alpha=0.3, size=0.3)
 
     axhauteur = plt.axes([0.2, 0.1, 0.65, 0.03])
     slider = Slider(axhauteur, 'dt', 0, 1, valinit=0)
