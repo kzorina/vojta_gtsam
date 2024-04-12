@@ -285,7 +285,7 @@ class Tracks:
         assignment = [None for i in range(len(detections))]
         tracks = list(self.tracks[obj_label])
         D_match = self.calculate_D(tracks, detections, time_stamp, 'mahal')
-        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'mahal')
+        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'e')
         # print(f"D_match:{D_match}, D_outlier:{D_outlier}")
         for i in range(min(D_match.shape[0], D_match.shape[1])):
             arg_min = np.unravel_index(np.argmin(D_match, axis=None), D_match.shape)
