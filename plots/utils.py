@@ -69,8 +69,8 @@ def compute_t_id_log_err_pairs_for_object(frames, obj_label, camera_poses):
                             np.linalg.norm(T.translation),
                             predicted,
                             np.linalg.det(pose["Q"]),
-                            np.linalg.det(pose["Q"][3:6, 3:6]) ** (1/3),
-                            np.linalg.det(pose["Q"][:3, :3]) ** (1/3),
+                            np.linalg.det(pose["Q"][3:6, 3:6]) ** (1/2),
+                            np.linalg.det(pose["Q"][:3, :3]) ** (1/2),
                         ]
                     )
                 else:

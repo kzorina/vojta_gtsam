@@ -30,7 +30,7 @@ class FactorGraphWrapper:
         for i in range(self.chunk_count):
             self.active_graphs[i].add(factor)
 
-    def inser_estimate(self, symbol, pose):
+    def insert_estimate(self, symbol, pose):
         if 2010001 == symbol - L(0):
             print('')
         self.initial_estimate.insert(symbol, pose)

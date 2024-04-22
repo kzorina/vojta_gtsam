@@ -36,7 +36,7 @@ def euclidean_distance(T_wa:gtsam.Pose3, T_wb:gtsam.Pose3):
     T_ab:gtsam.Pose3 = T_wa.inverse() * T_wb
     t = T_ab.translation()
     w = gtsam.Rot3.Logmap(T_ab.rotation())
-    return np.linalg.norm(t)*3 + np.linalg.norm(w)
+    return np.linalg.norm(t) + np.linalg.norm(w)*0.625
 
 if __name__ == "__main__":
     T1 = gtsam.Pose3(np.eye(4))

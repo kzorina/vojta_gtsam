@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from gtsam.symbol_shorthand import B, V, X, L
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -55,59 +56,59 @@ def split_d(d):
         r[i] = np.linalg.norm(pin.log3(T.rotation))
     return t, r
 
+def plot_cov_evolution(axis1, axis2,  track_id, frames_refined, linewidth=1, color='b'):
+    Qs_t = np.full((len(frames_refined)), np.nan)
+    Qs_r = np.full((len(frames_refined)), np.nan)
+    for frame in range(len(frames_refined)):
+        if frame == 150:
+            print('')
+        for obj_label in frames_refined[frame]:
+                for i in range(len(frames_refined[frame][obj_label])):
+                    obj_id = frames_refined[frame][obj_label][i]['id']
+                    if obj_id > 10 ** 8:
+                        obj_id = int((obj_id - L(0)) * 10 ** (-6))
+                    if obj_id == track_id:
+                        Q = frames_refined[frame][obj_label][i]['Q']
+                        Qs_r[frame] = np.linalg.det(Q[:3, :3]) ** 0.5
+                        Qs_t[frame] = np.linalg.det(Q[3:6, 3:6]) ** 0.5
+                        break
+
+    print("")
+
+    axis1.plot(np.arange(len(Qs_r)), Qs_r, "-", label=f"Qs_r", linewidth=linewidth, color=color)
+    axis1.hlines(y=0.001, xmin=0, xmax=len(Qs_r), linewidth=1, color='black')
+    axis2.plot(np.arange(len(Qs_t)), Qs_t, "-", label=f"Qs_t", linewidth=linewidth, color=color)
+    axis2.hlines(y=0.000025, xmin=0, xmax=len(Qs_t), linewidth=1, color='black')
+    axis1.set_ylim([0.0, 10**(-1)])
+    axis2.set_ylim([0.0, 10**(-1)])
+    axis1.set_xlabel("frame")
+    axis1.set_ylabel("det(cov R)^0.5")
+    #
+    axis2.set_xlabel("frame")
+    axis2.set_ylabel("det(cov t)^0.5")
 
 def main():
-    ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000000"
+    ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000001"
     frames_refined_prediction = pickle.load(open(ds_path / "frames_refined_prediction.p", "rb"))
+    frames_refined_prediction_new = pickle.load(open(ds_path / "frames_refined_prediction_new.p", "rb"))
+    frames_refined_prediction_swap = pickle.load(open(ds_path / "frames_refined_prediction_swap.p", "rb"))
     frames_prediction = pickle.load(open(ds_path / "frames_prediction.p", "rb"))
     scene_gt = load_scene_gt(ds_path / "scene_gt.json", list(HOPE_OBJECT_NAMES.values()))
     camera_poses = load_scene_camera(ds_path / "scene_camera.json")
 
+    fig, ax = plt.subplots(2)
+    plt.grid(axis='y')
 
     all_object_labels = set()
     for frame in scene_gt:
         all_object_labels.update(frame.keys())
     all_object_labels = sorted(all_object_labels)
+    # obj_label = all_object_labels[3]
+    track_id = 1
 
-    object_label = all_object_labels[0]
-    Qs_t = np.zeros((len(frames_refined_prediction)))
-    Qs_r = np.zeros((len(frames_refined_prediction)))
-    for frame in range(len(frames_refined_prediction)):
-        if object_label in frames_refined_prediction[frame]:
-            if len(frames_refined_prediction[frame][object_label]) > 0:
-                Q = frames_refined_prediction[frame][object_label][0]['Q']
-
-                Qs_r[frame] = np.linalg.det(Q[:3, :3])**(1/3)
-
-                Qs_t[frame] = np.linalg.det(Q[3:6, 3:6])**(1/3)
-        else:
-            Qs_r[frame] = None
-            Qs_t[frame] = None
-
-    print("")
-
-    fig, ax = plt.subplots(2)
-    plt.grid(axis='y')
-
-    ax[0].plot(np.arange(len(Qs_r)), Qs_r, "-", label=f"Qs_r")
-    ax[0].hlines(y=0.95, xmin=0, xmax=len(Qs_r), linewidth=2, color='r')
-    ax[1].plot(np.arange(len(Qs_t)), Qs_t, "-", label=f"Qs_t")
-    ax[1].hlines(y=0.75, xmin=0, xmax=len(Qs_t), linewidth=2, color='r')
-    ax[0].set_ylim([0.0, 0.06])
-    ax[1].set_ylim([0.0, 0.0001])
-    ax[0].set_xlabel("frame")
-    ax[0].set_ylabel("det(cov R)^0.5")
-    #
-    ax[1].set_xlabel("frame")
-    ax[1].set_ylabel("det(cov t)^0.5")
-    #
-    # ax[0].legend(
-    #     loc="upper center",
-    #     bbox_to_anchor=(0.5, 1.25),
-    #     ncol=4,
-    #     fancybox=True,
-    #     shadow=True,
-    # )
+    plot_cov_evolution(ax[0], ax[1], track_id, frames_refined_prediction_swap, linewidth=7, color='b')
+    plot_cov_evolution(ax[0], ax[1], track_id, frames_refined_prediction_new, linewidth=4, color='r')
+    plot_cov_evolution(ax[0], ax[1], track_id, frames_refined_prediction, linewidth=1, color='g')
     plt.show()
 
 if __name__ == "__main__":

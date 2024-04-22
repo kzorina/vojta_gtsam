@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 from typing import List, Tuple, Union
-
+from gtsam.symbol_shorthand import B, V, X, L
 import cosypose
 import cv2
 
@@ -189,7 +189,7 @@ def rendering(predictions, renderer, K, resolution=(640, 480)):
     return renderings
 
 
-def save_prediction_img(output_path, img_name, rgb, rgb_renders):
+def save_prediction_img(output_path, img_name, rgb, rgb_renders, show_raw_rgb=True):
     overlays = []
     for rgb_render in rgb_renders:
         mask = ~(rgb_render.sum(axis=-1) == 0)
@@ -200,7 +200,10 @@ def save_prediction_img(output_path, img_name, rgb, rgb_renders):
         rgb_overlay[~mask] = rgb[~mask] * 0.4 + 255 * 0.6
         rgb_overlay[mask] = rgb_render[mask] * 0.9 + 255 * 0.1
         overlays.append(rgb_overlay)
-    comparison_img = cv2.cvtColor(np.concatenate([rgb]+ overlays, axis=1), cv2.COLOR_BGR2RGB)
+    if show_raw_rgb:
+        comparison_img = cv2.cvtColor(np.concatenate([rgb]+ overlays, axis=1), cv2.COLOR_BGR2RGB)
+    else:
+        comparison_img = cv2.cvtColor(np.concatenate(overlays, axis=1), cv2.COLOR_BGR2RGB)
     cv2.imwrite(str(output_path/img_name), comparison_img)
 
 def predictions_to_dict(predictions):
@@ -288,7 +291,9 @@ def draw_track_ids(img, predictions, K):
             uvw = K@predictions[obj_label][obj_idx]['T_co'][:3, 3]
             uv = tuple((uvw[:2]/uvw[2]).astype(int))
             obj_id = predictions[obj_label][obj_idx]['id']
-            cv2.putText(img, str(obj_id), org=tuple(uv), fontFace=font, fontScale=0.5, color=(1, 1, 1), thickness=2, lineType=2)
+            if obj_id > 10**8:
+                obj_id = int((obj_id - L(0))*10**(-6))
+            cv2.putText(img, str(obj_id), org=tuple(uv), fontFace=font, fontScale=0.5, color=(1, 120, 1), thickness=2, lineType=2)
 
 def draw_detection_ids(img, predictions, K):
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -296,21 +301,21 @@ def draw_detection_ids(img, predictions, K):
         for obj_idx in range(len(predictions[obj_label])):
             uvw = K@predictions[obj_label][obj_idx][:3, 3]
             uv = tuple((uvw[:2]/uvw[2]).astype(int))
-            cv2.putText(img, str(obj_idx), org=tuple(uv), fontFace=font, fontScale=0.5, color=(1, 1, 1), thickness=2, lineType=2)
+            cv2.putText(img, str(obj_idx), org=tuple(uv), fontFace=font, fontScale=0.5, color=(1, 120, 1), thickness=2, lineType=2)
 
 def main():
     set_logging_level("info")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "hopeVideo"
-    # DATASET_NAME = "SynthStatic"
+    DATASET_NAME = "SynthStatic"
     # DATASET_NAME = "SynthDynamic"
-    DATASET_NAME = "SynthDynamicOcclusion"
+    # DATASET_NAME = "SynthDynamicOcclusion"
     # DATASET_NAME = "SynthTest"
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
-    SCENES_NAMES = ["000002"]
+    SCENES_NAMES = ["000000"]
 
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)
@@ -318,7 +323,7 @@ def main():
     for scene_name in SCENES_NAMES[0:1]:
         print(f"\n{scene_name}:")
         dataset_path = DATASET_PATH / "test" / scene_name
-        output_dir = dataset_path / "output_fifo"
+        output_dir = dataset_path / "output_fifo_swap"
         __refresh_dir(output_dir)
         scene_camera = load_scene_camera(dataset_path / "scene_camera.json")
         # scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(YCBV_OBJECT_NAMES.values()))
@@ -327,20 +332,30 @@ def main():
         # frames_prediction = load_data(dataset_path / "frames_prediction.p")
         frames_prediction = load_data(dataset_path / "frames_prediction.p")
         frames_refined_prediction = load_data(dataset_path / "frames_refined_prediction.p")
+        # frames_refined_prediction_swap = load_data(dataset_path / "frames_refined_prediction_swap.p")
         # frames_refined_prediction = load_data(dataset_path / "frames_prediction_mod6.p")
 
         for i in range(0, len(img_names), 1):
             img_name = img_names[i]
             rgb = np.array(Image.open(dataset_path/"rgb"/img_name), dtype=np.uint8)
             K = scene_camera[i]["cam_K"]
-            renderings_gtsam = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
-            gtsam_rgb = renderings_gtsam.rgb
-            draw_track_ids(gtsam_rgb, frames_refined_prediction[i], K)
             renderings_cosypose = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
             cosypose_rgb = renderings_cosypose.rgb
             draw_detection_ids(cosypose_rgb, frames_prediction[i], K)
+            cv2.putText(cosypose_rgb, 'cosypose', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
+
+            renderings_gtsam = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
+            gtsam_rgb = renderings_gtsam.rgb
+            draw_track_ids(gtsam_rgb, frames_refined_prediction[i], K)
+            cv2.putText(gtsam_rgb, 'gtsam_latest', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
+
+            # renderings_gtsam_swap = rendering(frames_refined_prediction_swap[i], renderer, K, rgb.shape[:2])
+            # gtsam_rgb_swap = renderings_gtsam_swap.rgb
+            # draw_track_ids(gtsam_rgb_swap, frames_refined_prediction_swap[i], K)
+            # cv2.putText(gtsam_rgb_swap, 'gtsam_swap', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
+
             # save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb])
-            save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb, gtsam_rgb])
+            save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb, gtsam_rgb], show_raw_rgb=False)
             print(f"\r({i+1}/{len(img_names)})", end='')
 
 

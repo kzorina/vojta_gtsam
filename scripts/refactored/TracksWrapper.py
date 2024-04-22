@@ -34,7 +34,7 @@ class Camera:
         noise = gtsam.noiseModel.Gaussian.Covariance(Q)
         factor = gtsam.PriorFactorPose3(self.get_symbol(), gtsam.Pose3(T_wc), noise)
         self.parent.factor_graph.add_factor(factor)
-        self.parent.factor_graph.inser_estimate(self.get_symbol(), T_wc)
+        self.parent.factor_graph.insert_estimate(self.get_symbol(), T_wc)
         self.cached_attributes["T_wo_init"][0] = self.parent.update_stamp
         self.cached_attributes["T_wo_init"][1] = T_wc
         self.cached_attributes["Q_init"][0] = self.parent.update_stamp
@@ -177,7 +177,7 @@ class Track:
         noise = gtsam.noiseModel.Gaussian.Covariance(Q)
         factor = gtsam.BetweenFactorPose3(self.parent.camera.get_symbol(), self.get_symbol(), T_co, noise)
         self.parent.factor_graph.add_factor(factor)
-        self.parent.factor_graph.inser_estimate(self.get_symbol(), T_wo)
+        self.parent.factor_graph.insert_estimate(self.get_symbol(), T_wo)
         for order in range(1, self.max_order_derivative + 1):  # order=1...velocity, order=2...acceleration, order=3...jerk ...
             if self.num_detected > order:
                 dt = time_stamp - self.last_seen_time_stamp
@@ -185,24 +185,35 @@ class Track:
                 cov2[:3, :3] = np.eye(3) * self.parent.params.cov2_R
                 cov2[3:6, 3:6] = np.eye(3) * self.parent.params.cov2_t
                 triple_factor_noise = gtsam.noiseModel.Gaussian.Covariance(cov2)
-                if order == 1:
+                if order == 1:  # "velocity - velocity- acceleration" triple factor
                     error_func = partial(custom_odom_factors.error_velocity_integration_so3r3_global, dt)
-                else:
-                    pass
+                else:  # Pose3 - Pose3 - velocity triple factor
                     error_func = partial(custom_odom_factors.error_derivative_integration_so3r3_global, dt)
                 factor = gtsam.CustomFactor(triple_factor_noise,[self.get_derivative_symbol(order-1) - 1,
                                                                  self.get_derivative_symbol(order-1),
                                                                  self.get_derivative_symbol(order)],
                                                                  error_func)
                 self.parent.factor_graph.add_factor(factor)
-                self.parent.factor_graph.inser_estimate(self.get_derivative_symbol(order), np.zeros((6)))  # TODO: use better estimate
-        if self.num_detected > self.max_order_derivative + 1:
-            dt = time_stamp - self.last_seen_time_stamp
-            between_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_highest_derivative_Q(dt))
-            self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_derivative_symbol(self.max_order_derivative) - 1,
-                                                                          self.get_derivative_symbol(self.max_order_derivative),
-                                                                          np.zeros(6),
-                                                                          between_noise))
+                self.parent.factor_graph.insert_estimate(self.get_derivative_symbol(order), np.zeros((6)))  # TODO: use better estimate
+                if self.num_detected == order + 1:
+                    bogus_noise = gtsam.noiseModel.Isotropic.Sigma(6, self.parent.params.velocity_prior_sigma)
+                    self.parent.factor_graph.add_factor(gtsam.PriorFactorVector(self.get_derivative_symbol(order), np.zeros((6)), bogus_noise))
+
+        if self.num_detected > self.max_order_derivative + 1:  # the highest order derivative between factor is ready to be added
+            if self.max_order_derivative == 0:    # const pose model - the between factor is of type Pose3
+                dt = time_stamp - self.last_seen_time_stamp
+                between_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_highest_derivative_Q(dt))
+                self.parent.factor_graph.add_factor(gtsam.BetweenFactorPose3(self.get_derivative_symbol(self.max_order_derivative) - 1,
+                                                                              self.get_derivative_symbol(self.max_order_derivative),
+                                                                              gtsam.Pose3(np.eye(4)),
+                                                                              between_noise))
+            else:    # the between factor is of type Vector
+                dt = time_stamp - self.last_seen_time_stamp
+                between_noise = gtsam.noiseModel.Gaussian.Covariance(self.get_highest_derivative_Q(dt))
+                self.parent.factor_graph.add_factor(gtsam.BetweenFactorVector(self.get_derivative_symbol(self.max_order_derivative) - 1,
+                                                                              self.get_derivative_symbol(self.max_order_derivative),
+                                                                              np.zeros(6),
+                                                                              between_noise))
 
         self.last_seen_time_stamp = time_stamp
         self.parent.last_time_stamp = time_stamp
@@ -260,7 +271,7 @@ class Tracks:
                 R_wo_detection = gtsam.Pose3(R_wo_detection)
                 Q_wo_detection = (R_wo_detection * T_co_detection.inverse()).AdjointMap() @ Q_cc @ (R_wo_detection * T_co_detection.inverse()).AdjointMap().T + R_wo_detection.AdjointMap() @ Q_oo_detection @ R_wo_detection.AdjointMap().T
                 # W_wo_detection = gtsam.Pose3.Logmap(T_wo_detection)
-
+                W_no = gtsam.Pose3.Logmap(T_co_detection.inverse() * T_co_track)
                 W_ww = np.zeros(6)
                 W_ww[:3] = gtsam.Rot3.Logmap(T_wo_detection.rotation().inverse() * T_wo.rotation())
                 W_ww[3:6] = T_wo.translation() - T_wo_detection.translation()
@@ -273,7 +284,8 @@ class Tracks:
                 if distamce_type == 'e':
                     D[i, j] = euclidean_distance(T_wo, T_wo_detection)
                 if distamce_type == 'mahal':
-                    D[i, j] = mahalanobis_distance(W_ww, Q_wo_detection)
+                    # D[i, j] = mahalanobis_distance(W_ww, Q_wo_detection)
+                    D[i, j] = mahalanobis_distance(W_no, Q_oo_detection)
                 if distamce_type == 'min_mahal':
                     D[i, j] = min(mahalanobis_distance(W_ww, Q_wo_detection), mahalanobis_distance(W_ww_detection, Q_wo))
                     # raise Exception(f"not implemented yet")
@@ -285,6 +297,7 @@ class Tracks:
         assignment = [None for i in range(len(detections))]
         tracks = list(self.tracks[obj_label])
         D_match = self.calculate_D(tracks, detections, time_stamp, 'mahal')
+        # D_outlier = self.calculate_D(tracks, detections, time_stamp, 'mahal')
         D_outlier = self.calculate_D(tracks, detections, time_stamp, 'e')
         # print(f"D_match:{D_match}, D_outlier:{D_outlier}")
         for i in range(min(D_match.shape[0], D_match.shape[1])):

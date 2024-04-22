@@ -16,6 +16,7 @@ class GlobalParams:
     # velocity_diminishing_coef: float = 0.99
     # hysteresis_coef: float = 1
     max_derivative_order: int = 2  # 1...const velocity, 2...const acceleration, ...
+    reject_overlaps:float = 0  # in meters, if 2 detections of the same object are closer than this value, than only one is deemed valid
 
     def __repr__(self):
         return f"{self.mod}_" \

@@ -261,7 +261,7 @@ if __name__ == "__main__":
     pool = multiprocessing.Pool(processes=12)
     cov2 = 0
     # for ort in [3, 5]:
-    for ort in [5, 10]:
+    for ort in [10]:
     # for ort in [2.5, 5.0, 7.5]:
     #     for tvt, Rvt in [(0.00001,	0.002), (0.000015,	0.003)]:
     #     for tvt, Rvt in [(0.00002,	0.004), (0.000015,	0.003)]:

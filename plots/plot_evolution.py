@@ -171,8 +171,10 @@ for obj_label in all_object_labels:
     )  # type: plt.Figure, plt.Axes
     axhauteur1 = plt.axes([0.2, 0.2, 0.65, 0.03])
     axhauteur2 = plt.axes([0.2, 0.15, 0.65, 0.03])
-    slider1 = Slider(axhauteur1, 'tvt', 1e-6, 1e-4, valinit=2e-5)
-    slider2 = Slider(axhauteur2, 'rvt', 1e-3, 1e-1, valinit=0.010)
+    tvt = 0.000005
+    rvt = 0.00075
+    slider1 = Slider(axhauteur1, 'tvt', tvt*0.1, tvt*10, valinit=tvt)
+    slider2 = Slider(axhauteur2, 'rvt', rvt*0.1, rvt*10, valinit=rvt)
     slider1.on_changed(refresh_plot)
     slider2.on_changed(refresh_plot)
     refresh_plot(None)

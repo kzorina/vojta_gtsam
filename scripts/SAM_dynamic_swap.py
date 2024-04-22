@@ -47,19 +47,19 @@ class Landmark:
         return ret
 
     def is_valid(self, dt, Q):
-        # R_det = np.linalg.det(Q[:3, :3]) ** 0.5
-        # t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
-        R_det = np.linalg.det(Q[:3, :3]) ** 0.01
-        t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.01
-        weight = dt * 30
+        R_det = np.linalg.det(Q[:3, :3]) ** 0.5
+        t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.5
+        # R_det = np.linalg.det(Q[:3, :3]) ** 0.01
+        # t_det = np.linalg.det(Q[3:6, 3:6]) ** 0.01
+        # weight = dt * 30
         # elapsed_frames = 1
         if self.hysteresis_active:
-            if t_det < self.settings.t_validity_treshold * self.settings.hysteresis_coef * weight and R_det < self.settings.R_validity_treshold * self.settings.hysteresis_coef * weight:
+            if t_det < self.settings.t_validity_treshold * self.settings.hysteresis_coef and R_det < self.settings.R_validity_treshold * self.settings.hysteresis_coef:
                 return True
             else:
                 self.hysteresis_active = False
                 return False
-        if t_det < self.settings.t_validity_treshold * weight and R_det < self.settings.R_validity_treshold * weight:
+        if t_det < self.settings.t_validity_treshold and R_det < self.settings.R_validity_treshold:
             self.hysteresis_active = True
             return True
         return False

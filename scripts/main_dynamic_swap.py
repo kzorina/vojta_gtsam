@@ -258,18 +258,18 @@ if __name__ == "__main__":
     for mod in [1]:
     # for mod in [10]:
         for ws in [20]:
-            for ort in [5]:
-                for tvt, Rvt in [(0.725, 0.95)]:
+            for ort in [10]:
+                for tvt, Rvt in [(0.000025, 0.001)]:
                 # for tvt, Rvt in [(0.000005, 0.0005)]:
                 #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
-                    for cov_drift_lin_vel in [0.01]:
+                    for cov_drift_lin_vel in [1]:
                         # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
                         for cov_drift_ang_vel in [1]:
                             for cov2_t in [0.0000000001]:
                                 for cov2_R in [0.0000000001]:
                                 # for hyster in [25, 200, 800]:
                                     for hyster in [1.0]:
-                                        for tdw in [0.2]:
+                                        for tdw in [1]:
                                             sam_settings = SAMSettings(translation_dist_weight=tdw,
                                                                        mod=mod,
                                                                        window_size=ws,

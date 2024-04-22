@@ -26,7 +26,7 @@ def __refresh_dir(path):
         shutil.rmtree(path, ignore_errors=False, onerror=None)
     os.makedirs(path)
 
-def recalculate_validity(results, t_validity_treshold, R_validity_treshold):
+def recalculate_validity(results, t_validity_treshold, R_validity_treshold, reject_overlaps):
     recalculated_results = {}
     for result_key in results:
         refined_scene = results[result_key]
@@ -37,7 +37,24 @@ def recalculate_validity(results, t_validity_treshold, R_validity_treshold):
                 entry[obj_label] = []
                 for obj_idx in range(len(refined_scene[frame][obj_label])):
                     track = copy.deepcopy(refined_scene[frame][obj_label][obj_idx])
-                    track["valid"] = State.is_valid(track["Q"], t_validity_treshold, R_validity_treshold)
+
+                    validity = State.is_valid(track["Q"], t_validity_treshold, R_validity_treshold)
+                    T_wo = track["T_wo"]
+                    Q = track["Q"]
+                    #  remove overlapping discrete symmetries
+                    if validity and reject_overlaps > 0:
+                        for obj_inst in range(len(entry[obj_label])):
+                            if entry[obj_label][obj_inst]["valid"]:
+                                other_T_wo = entry[obj_label][obj_inst]["T_wo"]
+                                other_Q = entry[obj_label][obj_inst]["Q"]
+                                dist = np.linalg.norm(T_wo[:3, 3] - other_T_wo[:3, 3])
+                                if dist < reject_overlaps:
+                                    if np.linalg.det(Q) > np.linalg.det(other_Q):
+                                        validity = False
+                                    else:
+                                        entry[obj_label][obj_inst]["valid"] = False
+
+                    track["valid"] = validity
                     entry[obj_label].append(track)
             recalculated_refined_scene.append(entry)
         recalculated_results[result_key] = recalculated_refined_scene
@@ -77,12 +94,14 @@ def anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, params, dataset_type='h
         results[scene_num] = refined_scene
         with open(scene_path / 'frames_refined_prediction.p', 'wb') as file:
             pickle.dump(refined_scene, file)
-    for tvt in [0.75, 1, 1.5]:
-        for rvt in [0.75, 1, 1.5]:
+    for tvt in [1]:
+        for rvt in [0.1, 2.2, 2.5, 3, 3.5]:
             forked_params = copy.deepcopy(params)
             forked_params.R_validity_treshold = params.R_validity_treshold * rvt
             forked_params.t_validity_treshold = params.t_validity_treshold * tvt
-            recalculated_results = recalculate_validity(results, forked_params.t_validity_treshold, forked_params.R_validity_treshold)
+            # forked_params.R_validity_treshold = rvt
+
+            recalculated_results = recalculate_validity(results, forked_params.t_validity_treshold, forked_params.R_validity_treshold, forked_params.reject_overlaps)
             output_name = f'gtsam_{DATASET_NAME}-test_{str(forked_params)}_.csv'
             export_bop(convert_frames_to_bop(recalculated_results, dataset_type), DATASETS_PATH / DATASET_NAME / "ablation" / output_name)
 
@@ -91,29 +110,32 @@ def main():
     dataset_type = "hope"
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
     DATASET_NAME = "SynthDynamicOcclusion"
+    # DATASET_NAME = "SynthStatic"
+    # DATASET_NAME = "hopeVideo"
     # scenes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     scenes = [0, 1, 2]
     pool = multiprocessing.Pool(processes=15)
 
     __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
     base_params = GlobalParams(
-                                cov_drift_lin_vel=0.0032,
-                                cov_drift_ang_vel=0.032,
-                                outlier_rejection_treshold=3,
-                                t_validity_treshold=3e-5,
-                                R_validity_treshold=0.013,
-                                max_derivative_order=1)
-    for cdlv in [0.5, 1, 2, 4, 8]:
-        for cdav in [0.5, 1, 2, 4, 8]:
-            for ort in [0.75, 1, 1.5]:
+                                cov_drift_lin_vel=0.1,
+                                cov_drift_ang_vel=1,
+                                outlier_rejection_treshold=0.15,
+                                t_validity_treshold=0.000005,
+                                R_validity_treshold=0.00075,
+                                max_derivative_order=1,
+                                reject_overlaps=0.05)
+    for cdlv in [1]:
+        for cdav in [1]:
+            for ort in [1]:
                 forked_params = copy.deepcopy(base_params)
                 forked_params.cov_drift_lin_vel = base_params.cov_drift_lin_vel * cdlv
                 forked_params.cov_drift_ang_vel = base_params.cov_drift_ang_vel * cdav
                 forked_params.outlier_rejection_treshold = base_params.outlier_rejection_treshold * ort
-                pool.apply_async(anotate_dataset, args=(DATASETS_PATH, DATASET_NAME, scenes, forked_params, dataset_type))
-                # anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, forked_params)
-    pool.close()
-    pool.join()
+                # pool.apply_async(anotate_dataset, args=(DATASETS_PATH, DATASET_NAME, scenes, forked_params, dataset_type))
+                anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, forked_params)
+    # pool.close()
+    # pool.join()
 
     # refined_scene = load_pickle(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'frames_refined_prediction.p')
     # scene_gt = utils.load_scene_gt(DATASETS_PATH/DATASET_NAME/"test"/f"{0:06}"/'scene_gt.json', list(utils.HOPE_OBJECT_NAMES.values()))
