@@ -110,11 +110,11 @@ def main():
     #                             R_validity_treshold=0.015,
     #                             max_derivative_order=2)
     base_params = GlobalParams(
-                                cov_drift_lin_vel=0.01,
-                                cov_drift_ang_vel=0.1,
+                                cov_drift_lin_vel=0.1,
+                                cov_drift_ang_vel=1,
                                 outlier_rejection_treshold=0.15,
                                 t_validity_treshold=0.000005,
-                                R_validity_treshold=0.00075,
+                                R_validity_treshold=0.00075 * 16,
                                 max_derivative_order=1,
                                 reject_overlaps=0.05)
     # base_params = GlobalParams(

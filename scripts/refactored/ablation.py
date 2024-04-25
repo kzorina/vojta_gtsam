@@ -95,11 +95,11 @@ def anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, params, dataset_type='h
         with open(scene_path / 'frames_refined_prediction.p', 'wb') as file:
             pickle.dump(refined_scene, file)
     for tvt in [1]:
-        for rvt in [0.1, 2.2, 2.5, 3, 3.5]:
+        for rvt in [0.00016, 0.0000075]:
             forked_params = copy.deepcopy(params)
-            forked_params.R_validity_treshold = params.R_validity_treshold * rvt
-            forked_params.t_validity_treshold = params.t_validity_treshold * tvt
-            # forked_params.R_validity_treshold = rvt
+            # forked_params.R_validity_treshold = params.R_validity_treshold * rvt
+            # forked_params.t_validity_treshold = params.t_validity_treshold * tvt
+            forked_params.R_validity_treshold = rvt
 
             recalculated_results = recalculate_validity(results, forked_params.t_validity_treshold, forked_params.R_validity_treshold, forked_params.reject_overlaps)
             output_name = f'gtsam_{DATASET_NAME}-test_{str(forked_params)}_.csv'
@@ -109,21 +109,31 @@ def main():
     start_time = time.time()
     dataset_type = "hope"
     DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
-    DATASET_NAME = "SynthDynamicOcclusion"
+    # DATASET_NAME = "SynthDynamicOcclusion"
     # DATASET_NAME = "SynthStatic"
-    # DATASET_NAME = "hopeVideo"
-    # scenes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    scenes = [0, 1, 2]
+    DATASET_NAME = "hopeVideo"
+    scenes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # scenes = [0, 1, 2]
     pool = multiprocessing.Pool(processes=15)
 
     __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
+    # dynamic
+    # base_params = GlobalParams(
+    #                             cov_drift_lin_vel=0.1,
+    #                             cov_drift_ang_vel=1,
+    #                             outlier_rejection_treshold=0.15,
+    #                             t_validity_treshold=0.000005,
+    #                             R_validity_treshold=0.00075,
+    #                             max_derivative_order=1,
+    #                             reject_overlaps=0.05)
+    # static
     base_params = GlobalParams(
-                                cov_drift_lin_vel=0.1,
-                                cov_drift_ang_vel=1,
+                                cov_drift_lin_vel=0.00000001,
+                                cov_drift_ang_vel=0.0000001,
                                 outlier_rejection_treshold=0.15,
-                                t_validity_treshold=0.000005,
+                                t_validity_treshold=0.000025,
                                 R_validity_treshold=0.00075,
-                                max_derivative_order=1,
+                                max_derivative_order=0,
                                 reject_overlaps=0.05)
     for cdlv in [1]:
         for cdav in [1]:
