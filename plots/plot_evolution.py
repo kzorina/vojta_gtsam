@@ -22,7 +22,7 @@ from utils import (
 
 DATASET_ROOT = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
 
-ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000002"
+ds_path = DATASET_ROOT / "SynthDynamicOcclusion" / "test" / "000000"
 # ds_path = DATASET_ROOT / "SynthStatic" / "test" / "000000"
 
 frames_refined_prediction = pickle.load(open(ds_path / "frames_refined_prediction.p", "rb"))
@@ -68,8 +68,8 @@ def refresh_plot(num):
     if len(v.shape) == 1:
         plt.close(fig)
     for i, track_id in enumerate(np.unique(v[:, 1])):
-        conf = np.bitwise_and(v[:, 6] < trt,  v[:, 7] < rrt)
-        # conf = v[:, 4] > .5
+        # conf = np.bitwise_and(v[:, 6] < trt,  v[:, 7] < rrt)
+        conf = v[:, 4] > .5
 
         mask_predicted = np.bitwise_and(v[:, 1] == track_id, conf)
 
@@ -140,8 +140,8 @@ def refresh_plot(num):
 
 
     for i, track_id in enumerate(np.unique(v[:, 1])):
-        conf = np.bitwise_and(v[:, 6] < trt,  v[:, 7] < rrt)
-        # conf = v[:, 4] > .5
+        # conf = np.bitwise_and(v[:, 6] < trt,  v[:, 7] < rrt)
+        conf = v[:, 4] > .5
 
         mask_predicted = np.bitwise_and(v[:, 1] == track_id, conf)
 

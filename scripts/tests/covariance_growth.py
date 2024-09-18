@@ -3,6 +3,7 @@ import numpy as np
 from functools import partial
 from custom_odom_factors import *
 import matplotlib.pyplot as plt
+import matplotlib
 
 def simulate_cov_growth(sigma=1, dt=(1/30), T=1.0, triple_sigma=10**(-7), vel_prior_sigma=0.1):
     parameters = gtsam.ISAM2Params()
@@ -52,8 +53,10 @@ def simulate_cov_growth(sigma=1, dt=(1/30), T=1.0, triple_sigma=10**(-7), vel_pr
         Qv = isam.marginalCovariance(SYMBOL_GAP + i)
         new_graph = gtsam.NonlinearFactorGraph()
         initial_estimate.clear()
-        samplesQ[i] = np.linalg.det(Q[:3, :3]) ** (1/3)
-        samplesQv[i] = np.linalg.det(Qv[:3, :3]) ** (1/3)
+        # samplesQ[i] = np.linalg.det(Q[:3, :3]) ** (1/3)
+        # samplesQv[i] = np.linalg.det(Qv[:3, :3]) ** (1/3)
+        samplesQ[i] = np.linalg.det(Q) ** (1/6)
+        samplesQv[i] = np.linalg.det(Qv) ** (1/6)
         Qs[i, :, :] = Q
         Qvs[i, :, :] = Qv
         if i*dt > 3:
@@ -121,7 +124,10 @@ def simulate_num_vel_estimate(sigma):
     return dts, results
 
 def main():
-    fig, ax = plt.subplots(2)
+    fig, ax = plt.subplots(2, figsize=(13,8))
+    plt.subplots_adjust(left=0.08, right=0.99, top=0.95, bottom=0.1, hspace=0.3)
+
+
 
     T = 2.5
     # sigma = 10**(-7)
@@ -129,37 +135,45 @@ def main():
     vel_prior_sigma = 1
     triple_sigma = 10**(-7)
     dts, detQ, detQv = simulate_cov_growth(sigma, (1/30), T, triple_sigma, vel_prior_sigma)
-    ax[0].plot(dts, detQv, "-", label="dt=1/30",  linewidth=6, color='r')
-    ax[1].plot(dts, detQ, "-", label="dt=1/30", linewidth=6, color='r')
+    line_style = "-"
+    alpha = 0.9
+    ax[0].plot(dts, detQv, label="dt=1/30",  linewidth=2, color='r', linestyle=line_style, alpha=alpha)
+    ax[1].plot(dts, detQ, label="dt=1/30", linewidth=2, color='r', linestyle=line_style, alpha=alpha)
     dts, detQ, detQv = simulate_cov_growth(sigma, (1/60), T, triple_sigma, vel_prior_sigma)
-    ax[0].plot(dts, detQv, "-", label="dt=1/60", linewidth=5, color='b')
-    ax[1].plot(dts, detQ, "-", label="dt=1/60", linewidth=5, color='b')
+    ax[0].plot(dts, detQv, label="dt=1/60", linewidth=2, color='b', linestyle=line_style, alpha=alpha)
+    ax[1].plot(dts, detQ, label="dt=1/60", linewidth=2, color='b', linestyle=line_style, alpha=alpha)
     dts, detQ, detQv = simulate_cov_growth(sigma, (1/90), T, triple_sigma, vel_prior_sigma)
-    ax[0].plot(dts, detQv, "-", label="dt=1/90", linewidth=4, color='g')
-    ax[1].plot(dts, detQ, "-", label="dt=1/90", linewidth=4, color='g')
+    ax[0].plot(dts, detQv, label="dt=1/90", linewidth=2, color='g', linestyle=line_style, alpha=alpha)
+    ax[1].plot(dts, detQ, label="dt=1/90", linewidth=2, color='g', linestyle=line_style, alpha=alpha)
     dts, detQ, detQv = simulate_cov_growth(sigma, (1/120), T, triple_sigma, vel_prior_sigma)
-    ax[0].plot(dts, detQv, "-", label="dt=1/120", linewidth=3, color='purple')
-    ax[1].plot(dts, detQ, "-", label="dt=1/120", linewidth=3, color='purple')
+    ax[0].plot(dts, detQv, label="dt=1/120", linewidth=2, color='purple', linestyle=line_style, alpha=alpha)
+    ax[1].plot(dts, detQ, label="dt=1/120", linewidth=2, color='purple', linestyle=line_style, alpha=alpha)
     dts, detQ, detQv = simulate_cov_growth(sigma, (1/150), T, triple_sigma, vel_prior_sigma)
-    ax[0].plot(dts, detQv, "-", label="dt=1/150", linewidth=2, color='orange')
-    ax[1].plot(dts, detQ, "-", label="dt=1/150", linewidth=2, color='orange')
+    ax[0].plot(dts, detQv, label="dt=1/150", linewidth=2, color='orange', linestyle=line_style, alpha=alpha)
+    ax[1].plot(dts, detQ, label="dt=1/150", linewidth=2, color='orange', linestyle=line_style, alpha=alpha)
 
-    ax[0].set_xlabel("elapsed time (s)")
-    ax[0].set_ylabel("|Q_vel|^(1/6)")
-    ax[0].legend()
-    ax[1].legend()
+    fontsize = 15
 
-    ax[1].set_xlabel("elapsed time (s)")
-    ax[1].set_ylabel("|Q_pose|^(1/6)")
-    ax[0].grid()
-    ax[1].grid()
+    ax[0].set_xlabel("elapsed time [s]", fontsize=fontsize)
+    # ax[0].set_ylabel("|Q_vel|^(1/6)")
+    ax[0].set_ylabel(r"$\sqrt[6]{|Q_{vel}|}$ [m/s]", fontsize=fontsize)
+
+
+
+    ax[1].set_xlabel("elapsed time [s]", fontsize=fontsize)
+    # ax[1].set_ylabel("|Q_pose|^(1/6)")
+    ax[1].set_ylabel(r"$\sqrt[6]{|Q_{pose}|}$ [m]", fontsize=fontsize)
+    ax[0].grid(alpha=0.5)
+    ax[1].grid(alpha=0.5)
 
     #  predictions
-    ax[0].plot(dts, dts * sigma + vel_prior_sigma, "-", label=f"cov_growth1", linewidth=2, color='black')
-    ax[1].plot(dts, sigma * dts**(3)/3 + vel_prior_sigma * dts**2, "-", label=f"cov_growth1", linewidth=2, color='black')
-    ax[0].set_title("gtsam-estimated velocity uncertainty")
-    ax[1].set_title("gtsam-estimated pose uncertainty")
+    ax[0].plot(dts, dts * sigma + vel_prior_sigma, "-", label=f"analytical solution", linewidth=3, color='black')
+    ax[1].plot(dts, sigma * dts**(3)/3 + vel_prior_sigma * dts**2, "-", label=f"analytical solution", linewidth=3, color='black')
+    ax[0].set_title("Estimated velocity uncertainty", fontsize=fontsize)
+    ax[1].set_title("Estimated pose uncertainty", fontsize=fontsize)
 
+    ax[0].legend()
+    ax[1].legend()
 
     sigma = 10**(-1)
     err_func1 = error_derivative_integration_so3r3_global
@@ -174,6 +188,8 @@ def main():
     # ax[2].set_xlabel("dt")
     # ax[2].set_ylabel("|Qv|^(1/6)")
     # ax[2].grid()
+    fig.savefig(f"uncertainty.png")
+    fig.savefig(f"uncertainty.svg")
     plt.show()
     # pass
 

@@ -5,7 +5,7 @@ from gtsam import Symbol
 from gtsam.symbol_shorthand import B, V, X, L
 from FactorGraphWrapper import FactorGraphWrapper
 from GlobalParams import GlobalParams
-from distribution_distances import mahalanobis_distance, bhattacharyya_distance, euclidean_distance
+from distribution_distances import mahalanobis_distance, bhattacharyya_distance, euclidean_distance, translation_distance, rotation_distance
 from collections import defaultdict
 import custom_odom_factors
 from functools import partial
@@ -283,6 +283,10 @@ class Tracks:
                 w = gtsam.Pose3.Logmap(T_wo_detection.inverse())
                 if distamce_type == 'e':
                     D[i, j] = euclidean_distance(T_wo, T_wo_detection)
+                if distamce_type == 'trans':
+                    D[i, j] = translation_distance(T_wo, T_wo_detection)
+                if distamce_type == 'rot':
+                    D[i, j] = rotation_distance(T_wo, T_wo_detection)
                 if distamce_type == 'mahal':
                     # D[i, j] = mahalanobis_distance(W_ww, Q_wo_detection)
                     D[i, j] = mahalanobis_distance(W_no, Q_oo_detection)
@@ -297,16 +301,18 @@ class Tracks:
         assignment = [None for i in range(len(detections))]
         tracks = list(self.tracks[obj_label])
         D_match = self.calculate_D(tracks, detections, time_stamp, 'mahal')
-        # D_outlier = self.calculate_D(tracks, detections, time_stamp, 'mahal')
-        D_outlier = self.calculate_D(tracks, detections, time_stamp, 'e')
+        # D_outlier1 = self.calculate_D(tracks, detections, time_stamp, 'mahal')
+        D_outlier_trans = self.calculate_D(tracks, detections, time_stamp, 'trans')
+        D_outlier_rot = self.calculate_D(tracks, detections, time_stamp, 'rot')
         # print(f"D_match:{D_match}, D_outlier:{D_outlier}")
         for i in range(min(D_match.shape[0], D_match.shape[1])):
             arg_min = np.unravel_index(np.argmin(D_match, axis=None), D_match.shape)
             # minimum = D_match[arg_min]
-            minimum = D_outlier[arg_min]
+            minimum_trans = D_outlier_trans[arg_min]
+            minimum_rot = D_outlier_rot[arg_min]
             D_match[arg_min[0], :] = np.full((D_match.shape[1]), np.inf)
             D_match[:, arg_min[1]] = np.full((D_match.shape[0]), np.inf)
-            if minimum < self.params.outlier_rejection_treshold:
+            if minimum_trans < self.params.outlier_rejection_treshold_trans and minimum_rot < self.params.outlier_rejection_treshold_rot:
                 assignment[arg_min[1]] = tracks[arg_min[0]]
         # if obj_label == "Corn":
         #     D_match = self.calculate_D(tracks, detections, time_stamp, 'e')

@@ -97,10 +97,9 @@ def load_scene_gt(path, label_list=None):
     with open(path) as json_file:
         data: dict = json.load(json_file)
     parsed_data = []
-    for i in range(len(data)):
+    for k, val in data.items():
         entry = defaultdict(lambda: [])
-        frame = i + 1
-        for object in data[str(frame)]:
+        for object in val:
             T_cm = np.zeros((4, 4))
             T_cm[:3, :3] = np.array(object["cam_R_m2c"]).reshape((3, 3))
             T_cm[:3, :3] = T_cm[:3, :3]
@@ -124,12 +123,15 @@ def bogus_px_counts(scene_predictions, shape=(480, 640), size = 0.1):
     return ret
 
 def main():
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthTest")
+    DATASETS_PATH = Path("/home/kzorina/work/bop_datasets/ycbv_test_bop19")
     # DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]  # hope, synth
-    DATASET_NAMES = ["000002"]
+    DATASET_NAMES = [
+        "000048",  "000050",  "000052",  "000054",  "000056",  "000058",
+        "000049",  "000051",  "000053",  "000055",  "000057",  "000059",
+    ]
     for DATASET_NAME in DATASET_NAMES[0:]:
         scene_gt_path = DATASETS_PATH/"test"/DATASET_NAME/"scene_gt.json"
-        scene_gt = load_scene_gt(scene_gt_path, list(HOPE_OBJECT_NAMES.values()))
+        scene_gt = load_scene_gt(scene_gt_path, list(YCBV_OBJECT_NAMES.values()))
         save_preditions_data(DATASETS_PATH/"test"/DATASET_NAME/"frames_prediction.p", scene_gt)
         save_preditions_data(DATASETS_PATH/"test"/DATASET_NAME/"frames_px_counts.p", bogus_px_counts(scene_gt))
         print(f"{DATASETS_PATH/DATASET_NAME}:")

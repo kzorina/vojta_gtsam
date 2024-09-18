@@ -11,7 +11,8 @@ class GlobalParams:
     R_validity_treshold: float = 2e2
     max_track_age: float = 1.0  # in seconds
     chunk_size: int = 20
-    outlier_rejection_treshold: float = 10
+    outlier_rejection_treshold_trans: float = 10
+    outlier_rejection_treshold_rot: float = 10
     velocity_prior_sigma: float = 10
     # velocity_diminishing_coef: float = 0.99
     # hysteresis_coef: float = 1
@@ -24,7 +25,8 @@ class GlobalParams:
                f"{self.max_track_age}_" \
                f"{self.cov_drift_lin_vel}_" \
                f"{self.cov_drift_ang_vel}_" \
-               f"{self.outlier_rejection_treshold}_" \
+               f"{self.outlier_rejection_treshold_trans}_" \
+               f"{self.outlier_rejection_treshold_rot}_" \
                f"{self.t_validity_treshold:.2E}_" \
                f"{self.R_validity_treshold:.2E}"
 
@@ -34,7 +36,8 @@ rapid_tracking = GlobalParams(mod=1,
                                 cov_drift_lin_vel=0.4,
                                 cov_drift_ang_vel=20.0,
                                 max_track_age=1.0,
-                                outlier_rejection_treshold=4000,
+                                outlier_rejection_treshold_trans=0.15,
+                                outlier_rejection_treshold_rot=0.25,
                                 t_validity_treshold=0.01,
                                 R_validity_treshold=1.0,
                                 velocity_prior_sigma=10,
@@ -43,7 +46,8 @@ rapid_tracking = GlobalParams(mod=1,
 robust_tracking = GlobalParams(
                                 cov_drift_lin_vel=0.0004,
                                 cov_drift_ang_vel=0.04,
-                                outlier_rejection_treshold=1,
+                                outlier_rejection_treshold_trans=0.15,
+                                outlier_rejection_treshold_rot=0.25,
                                 t_validity_treshold=3.2e-4,
                                 R_validity_treshold=0.16,
                                 max_track_age=3.0,

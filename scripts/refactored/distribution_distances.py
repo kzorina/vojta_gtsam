@@ -38,6 +38,16 @@ def euclidean_distance(T_wa:gtsam.Pose3, T_wb:gtsam.Pose3):
     w = gtsam.Rot3.Logmap(T_ab.rotation())
     return np.linalg.norm(t) + np.linalg.norm(w)*0.625
 
+def translation_distance(T_wa:gtsam.Pose3, T_wb:gtsam.Pose3):
+    T_ab:gtsam.Pose3 = T_wa.inverse() * T_wb
+    t = T_ab.translation()
+    return np.linalg.norm(t)
+
+def rotation_distance(T_wa:gtsam.Pose3, T_wb:gtsam.Pose3):
+    T_ab:gtsam.Pose3 = T_wa.inverse() * T_wb
+    w = gtsam.Rot3.Logmap(T_ab.rotation())
+    return np.linalg.norm(w)
+
 if __name__ == "__main__":
     T1 = gtsam.Pose3(np.eye(4))
     T2 = gtsam.Pose3(np.eye(4))

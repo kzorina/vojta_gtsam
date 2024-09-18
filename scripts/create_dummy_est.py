@@ -47,9 +47,12 @@ def merge_inferences(DATASET_PATH, dataset_name="ycbv"):
     bop_tools.export_bop(bop_tools.convert_frames_to_bop(all_results, dataset_name, translate_obj_ids=False), DATASET_PATH / "augmentedGroundTruth_SynthStaticDummy-test_3.csv")
 
 def main():
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
-    DATASET_NAME = "SynthStaticDummy"
+    DATASETS_PATH = Path("/home/kzorina/work/bop_datasets")
+    DATASET_NAME = "hopeVideo"
     merge_inferences(DATASETS_PATH/DATASET_NAME, "hope")
 
 if __name__ == "__main__":
     main()
+
+
+    "/home/kzorina/work/bop_datasets/hopeVideo/augmentedGroundTruth_SynthStaticDummy-test_3.csv"

@@ -9,7 +9,7 @@ from utils import load_scene_camera, load_pickle, merge_T_cos_px_counts
 from SamWrapper import SamWrapper
 from State import *
 from GlobalParams import GlobalParams
-from Vizualization_tools import display_factor_graph, animate_refinement, animate_state
+# from Vizualization_tools import display_factor_graph, animate_refinement, animate_state
 from bop_tools import convert_frames_to_bop, export_bop
 import copy
 import os
@@ -95,7 +95,12 @@ def anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, params, dataset_type='h
         with open(scene_path / 'frames_refined_prediction.p', 'wb') as file:
             pickle.dump(refined_scene, file)
     for tvt in [1]:
-        for rvt in [0.00016, 0.0000075]:
+        # for rvt in [1]:
+        # for rvt in [0.006,0.003,0.00263,0.00225,0.00187,0.00165,0.0015,0.00113,0.000937,0.00075,0.000563,0.000375,0.000188]:
+
+        # for rvt in [0.000937, 0.00187]: # precision oriented, recall oriented for dynamic
+        for rvt in [0.0000125, 0.00012]: # precision oriented, recall oriented for static
+        # for rvt in [0.0006400,0.0003200,0.0001600,0.0001200,0.0000800,0.0000400,0.0000200,0.0000175,0.0000150,0.0000125,0.0000100,0.0000075,0.0000050,0.0000025,0.0000010]:
             forked_params = copy.deepcopy(params)
             # forked_params.R_validity_treshold = params.R_validity_treshold * rvt
             # forked_params.t_validity_treshold = params.t_validity_treshold * tvt
@@ -108,42 +113,44 @@ def anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, params, dataset_type='h
 def main():
     start_time = time.time()
     dataset_type = "hope"
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
+    DATASETS_PATH = Path("/home/kzorina/work/bop_datasets")
     # DATASET_NAME = "SynthDynamicOcclusion"
     # DATASET_NAME = "SynthStatic"
     DATASET_NAME = "hopeVideo"
     scenes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # scenes = [0, 1, 2]
+    # scenes = [0]
+
     pool = multiprocessing.Pool(processes=15)
 
     __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
     # dynamic
-    # base_params = GlobalParams(
-    #                             cov_drift_lin_vel=0.1,
-    #                             cov_drift_ang_vel=1,
-    #                             outlier_rejection_treshold=0.15,
-    #                             t_validity_treshold=0.000005,
-    #                             R_validity_treshold=0.00075,
-    #                             max_derivative_order=1,
-    #                             reject_overlaps=0.05)
-    # static
     base_params = GlobalParams(
-                                cov_drift_lin_vel=0.00000001,
-                                cov_drift_ang_vel=0.0000001,
-                                outlier_rejection_treshold=0.15,
-                                t_validity_treshold=0.000025,
+                                cov_drift_lin_vel=0.1,
+                                cov_drift_ang_vel=1,
+                                outlier_rejection_treshold_trans=0.10,
+                                outlier_rejection_treshold_rot=10*np.pi/180,
+                                t_validity_treshold=0.000005,
                                 R_validity_treshold=0.00075,
-                                max_derivative_order=0,
+                                max_derivative_order=1,
                                 reject_overlaps=0.05)
-    for cdlv in [1]:
-        for cdav in [1]:
-            for ort in [1]:
-                forked_params = copy.deepcopy(base_params)
-                forked_params.cov_drift_lin_vel = base_params.cov_drift_lin_vel * cdlv
-                forked_params.cov_drift_ang_vel = base_params.cov_drift_ang_vel * cdav
-                forked_params.outlier_rejection_treshold = base_params.outlier_rejection_treshold * ort
-                # pool.apply_async(anotate_dataset, args=(DATASETS_PATH, DATASET_NAME, scenes, forked_params, dataset_type))
-                anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, forked_params)
+    # static
+    # base_params = GlobalParams(
+    #                             cov_drift_lin_vel=0.00000001,
+    #                             cov_drift_ang_vel=0.0000001,
+    #                             outlier_rejection_treshold_trans = 0.10,
+    #                             outlier_rejection_treshold_rot = 10*np.pi/180,
+    #                             t_validity_treshold=0.000025,
+    #                             R_validity_treshold=0.00075,
+    #                             max_derivative_order=0,
+    #                             reject_overlaps=0.05)
+    for trans in [1]:
+        for rot in [1]:
+            forked_params = copy.deepcopy(base_params)
+            # forked_params.outlier_rejection_treshold_trans = trans
+            # forked_params.outlier_rejection_treshold_rot = rot
+            # pool.apply_async(anotate_dataset, args=(DATASETS_PATH, DATASET_NAME, scenes, forked_params, dataset_type))
+            anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, forked_params)
     # pool.close()
     # pool.join()
 

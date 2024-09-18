@@ -29,6 +29,21 @@ def load_scene_gt(path, label_list=None):
         parsed_data.append(entry)
     return parsed_data
 
+def load_scene_camera(path):
+    with open(path) as json_file:
+        data:dict = json.load(json_file)
+    parsed_data = []
+    for i in range(len(data)):
+        entry = {}
+        entry["cam_K"] = np.array(data[str(i+1)]["cam_K"]).reshape((3, 3))
+        T_cw = np.zeros((4, 4))
+        T_cw[:3, :3] = np.array(data[str(i+1)]["cam_R_w2c"]).reshape((3, 3))
+        T_cw[:3, 3] = np.array(data[str(i+1)]["cam_t_w2c"])/1000
+        T_cw[3, 3] = 1
+        entry["T_cw"] = T_cw
+        parsed_data.append(entry)
+    return parsed_data
+
 
 def _cam_w2c_pose_from_cam_frame(cam):
     R_w2c = np.array(cam["cam_R_w2c"]).reshape((3, 3))
@@ -79,6 +94,27 @@ def compute_t_id_log_err_pairs_for_object(frames, obj_label, camera_poses):
                     v.append([i, track_id,  np.linalg.norm(pin.log3(T.rotation)), np.linalg.norm(T.translation)])
     return np.asarray(v)
 
+YCBV_OBJECT_NAMES = {"obj_000001": "01_master_chef_can",
+    "obj_000002": "02_cracker_box",
+    "obj_000003": "03_sugar_box",
+    "obj_000004": "04_tomatoe_soup_can",
+    "obj_000005": "05_mustard_bottle",
+    "obj_000006": "06_tuna_fish_can",
+    "obj_000007": "07_pudding_box",
+    "obj_000008": "08_gelatin_box",
+    "obj_000009": "09_potted_meat_can",
+    "obj_000010": "10_banana",
+    "obj_000011": "11_pitcher_base",
+    "obj_000012": "12_bleach_cleanser",
+    "obj_000013": "13_bowl",
+    "obj_000014": "14_mug",
+    "obj_000015": "15_power_drill",
+    "obj_000016": "16_wood_block",
+    "obj_000017": "17_scissors",
+    "obj_000018": "18_large_marker",
+    "obj_000019": "19_large_clamp",
+    "obj_000020": "20_extra_large_clamp",
+    "obj_000021": "21_foam_brick"}
 
 HOPE_OBJECT_NAMES = {
     "obj_000001": "AlphabetSoup",

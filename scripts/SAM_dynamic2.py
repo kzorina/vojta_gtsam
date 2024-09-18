@@ -74,6 +74,7 @@ class SAMSettings:
     velocity_prior_sigma: float = 10
     velocity_diminishing_coef:float = 0.99
     hysteresis_coef:float = 1
+    reject_overlaps:float = 0.0
 
     def __repr__(self):
         return f"{self.window_size}_" \
@@ -450,6 +451,7 @@ class SAM:
                 else:
                     T_bc: gtsam.Pose3 = gtsam.Pose3(current_T_bc)
                 T_bo: gtsam.Pose3 = self.isam_wrapper.current_estimate.atPose3(landmark.symbol)
+                T_wo = T_bo.matrix()
                 if timestamp is not None and landmark.initial_symbol != landmark.symbol:
                     dt = timestamp - self.current_time_stamp
                     nu12 = self.isam_wrapper.current_estimate.atVector(V(dL(landmark.symbol - 1)))
@@ -457,7 +459,20 @@ class SAM:
                 else:
                     T_bb = gtsam.Pose3.Identity()
                 T_co = (T_bc.inverse().compose(T_bb).compose(T_bo)).matrix()
-                ret[object_name].append({"T_co":T_co, "id":landmark.initial_symbol,"Q":Q, "valid":landmark_valid}, )
+
+                if landmark_valid and self.settings.reject_overlaps > 0:
+                    for obj_inst in range(len(ret[object_name])):
+                        if ret[object_name][obj_inst]["valid"]:
+                            other_T_wo = ret[object_name][obj_inst]["T_wo"]
+                            other_Q = ret[object_name][obj_inst]["Q"]
+                            dist = np.linalg.norm(T_wo[:3, 3] - other_T_wo[:3, 3])
+                            if dist < self.settings.reject_overlaps:
+                                if np.linalg.det(Q) > np.linalg.det(other_Q):
+                                    landmark_valid = False
+                                else:
+                                    ret[object_name][obj_inst]["valid"] = False
+
+                ret[object_name].append({"T_co":T_co, "T_wo":T_wo, "id":landmark.initial_symbol,"Q":Q, "valid":landmark_valid}, )
         return ret
 
     def export_current_state(self):

@@ -10,9 +10,18 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 # for file_name in ["abblation_synth_hope_static", "abblation_hope_video"]:
-for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
+# method_names = {"ablation_synth_hope_dynamic_occlusion": "Ours (const. velocity)",
+#                 "ablation_synth_hope_static": "Ours (const. pose)"}
+
+method_names = {"ablation_synth_hope_dynamic_occlusion_5%": "Ours (const. velocity)",
+                "ablation_synth_hope_static_5%": "Ours (const. pose)"}
+
+for file_name in ["ablation_synth_hope_dynamic_occlusion_5%", "ablation_synth_hope_static_5%"]:
+# for file_name in ["ablation_synth_hope_dynamic_occlusion", "ablation_synth_hope_static"]:
     # data = pd.read_csv(Path(__file__).parent / "abblation" / f"{file_name}.csv")
-    data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/hope_dataset_tools/ablation_synth_hope_dynamic_occlusion_d1_vsd.csv", sep='\t')
+    # data = pd.read_csv("/home/vojta/PycharmProjects/gtsam_playground/hope_dataset_tools/ablation_synth_hope_dynamic_occlusion.csv", sep='\t')
+    data = pd.read_csv(f"/home/vojta/PycharmProjects/gtsam_playground/hope_dataset_tools/{file_name}.csv", sep='\t')
+
     data = data.rename(
         columns={
             "mod": "mod",
@@ -20,7 +29,8 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
             "max_track_age": "max_track_age",
             "cov_drift_lin_vel": "cov_drift_lin_vel",
             "cov_drift_ang_vel": "cov_drift_ang_vel",
-            "outlier_rejection_treshold": "outlier",
+            "outlier_rejection_treshold_trans": "outlier_trans",
+            "outlier_rejection_treshold_rot": "outlier",
             "t_validity_treshold": "translation",
             "R_validity_treshold": "rotation",
             "bop19_average_recall": "recall",
@@ -38,6 +48,7 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     outliers = np.unique(data_sam["outlier"])
     translations = np.unique(data_sam["translation"])
     rotations = np.unique(data_sam["rotation"])
+    # mods = np.unique(data_sam["mod"])
     mods = np.unique(data_sam["mod"])
 
     # # plot outlier vs recal/precission for all thresholds
@@ -109,10 +120,13 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
     )  # type: plt.Figure, plt.Axes
 
     # for outlier in outliers:
+    ax.scatter(data_cosypose.recall, data_cosypose.precision, color="tab:orange", marker='x', s=80, linewidths=2,
+               label="CosyPose", zorder=3)
     for ws in mods:
         # for t in translations:
         # d = data_sam[(data_sam["outlier"] == outlier) & (data_sam["translation"] == t)]
         d = data_sam[(data_sam["mod"] == ws)]
+        # d = data_sam
         d = d.sort_values(by=["recall"])
         # d = data_sam[data_sam["outlier"] == outlier]
         if isinstance(ws, str):
@@ -122,27 +136,58 @@ for file_name in ["ablation_synth_hope_dynamic_occlusion"]:
                 value = ws
         else:
             value = ws
-        ax.plot(
-            d.precision,
-            d.recall,
-            "-o",
-            # label=rf"$\tau_\text{{outlier}}={outlier}, \tau_\text{{pred\_t}}={t}$",
-            label=f"window_size={value}",
-        )
-    ax.plot(data_cosypose.precision, data_cosypose.recall, "x", label="CosyPose", ms=10)
+        if int(float(ws)) == 1:
+            ax.plot(
+                d.recall,
+                d.precision,
+                "-o",
+                # label=rf"$\tau_\text{{outlier}}={outlier}, \tau_\text{{pred\_t}}={t}$",
+                label=f"{method_names[file_name]}",
+                zorder=2
+            )
+        else:
+            # ax.plot(
+            #     d.recall,
+            #     d.precision,
+            #     marker='o',
+            #     markersize=10,
+            #     linewidth=3,
+            #     mfc='none',
+            #     # label=rf"$\tau_\text{{outlier}}={outlier}, \tau_\text{{pred\_t}}={t}$",
+            #     label=f"{method_names[file_name]}",
+            # )
+            colors = [None, None, "tab:green", "tab:purple"]
+            names = [None, None, "recall oriented", "precision oriented"]
+            ax.scatter(d.recall, d.precision, color=colors[int(float(ws))], marker='o', s=150, linewidths=2, facecolors='none', label=f"{names[int(float(ws))]}", zorder=3)
 
-    ax.set_ylabel("Recall")
-    ax.set_xlabel("Precision")
-    ax.set_xlim(0.3,1)
+    # ax.plot(data_cosypose.precision, data_cosypose.recall, "x", label="CosyPose", ms=10)
+    # ax.plot(data_cosypose.recall, data_cosypose.precision, "x", label="CosyPose", ms=10)
+
+
+    fontsize = 13
+
+    ax.set_xlabel("Recall", fontsize=fontsize)
+    ax.set_ylabel("Precision", fontsize=fontsize)
+
+    if "dynamic" in file_name:
+        ax.set_title("Dynamic", fontsize=fontsize + 2)
+    if "static" in file_name:
+        ax.set_title("Static", fontsize=fontsize + 2)
+
+    ax.set_xlim(0.0,1)
+    ax.set_ylim(0.0,1)
     ax.axes.set_aspect("equal")
     ax.legend(
         loc="upper center",
         bbox_to_anchor=(0.5, 1.25),
-        ncol=4,
+        ncol=2,
         fancybox=True,
         shadow=True,
     )
+    plt.grid()
     fig.subplots_adjust(top=0.8)
     fig.savefig(f"{file_name}.png")
-    plt.grid()
+    fig.savefig(f"{file_name}.svg")
+    fig.savefig(f"{file_name}.pdf")
+
     plt.show()

@@ -83,7 +83,8 @@ def anotate_dataset(DATASETS_PATH, DATASET_NAME, scenes, params, dataset_type='h
             pickle.dump(refined_scene, file)
     for tvt in [1]:
         for rvt in [1]:
-            recalculated_results = recalculate_validity(results, params.t_validity_treshold, params.R_validity_treshold)
+            recalculated_results = results
+            # recalculated_results = recalculate_validity(results, params.t_validity_treshold, params.R_validity_treshold)
             forked_params = copy.deepcopy(params)
             forked_params.R_validity_treshold = params.R_validity_treshold * rvt
             forked_params.t_validity_treshold = params.t_validity_treshold * tvt

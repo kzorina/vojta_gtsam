@@ -306,24 +306,25 @@ def draw_detection_ids(img, predictions, K):
 def main():
     set_logging_level("info")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
+    DATASETS_PATH = Path("/mnt/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "hopeVideo"
-    DATASET_NAME = "SynthStatic"
+    # DATASET_NAME = "SynthStatic"
     # DATASET_NAME = "SynthDynamic"
-    # DATASET_NAME = "SynthDynamicOcclusion"
+    DATASET_NAME = "SynthDynamicOcclusion"
     # DATASET_NAME = "SynthTest"
     DATASET_PATH = DATASETS_PATH/DATASET_NAME
     MESHES_PATH = DATASETS_PATH/DATASET_NAME/"meshes"
     SCENES_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]
-    SCENES_NAMES = ["000000"]
+    # SCENES_NAMES = ["000000"]
 
     object_dataset = make_object_dataset(MESHES_PATH)
     renderer = Panda3dSceneRenderer(object_dataset)
 
-    for scene_name in SCENES_NAMES[0:1]:
+    for scene_name in SCENES_NAMES:
         print(f"\n{scene_name}:")
         dataset_path = DATASET_PATH / "test" / scene_name
-        output_dir = dataset_path / "output_fifo_swap"
+        # output_dir = dataset_path / "output_cosypose"
+        output_dir = dataset_path / "output"
         __refresh_dir(output_dir)
         scene_camera = load_scene_camera(dataset_path / "scene_camera.json")
         # scene_gt = load_scene_gt(dataset_path / "scene_gt.json", list(YCBV_OBJECT_NAMES.values()))
@@ -341,13 +342,13 @@ def main():
             K = scene_camera[i]["cam_K"]
             renderings_cosypose = rendering(frames_prediction[i], renderer, K, rgb.shape[:2])
             cosypose_rgb = renderings_cosypose.rgb
-            draw_detection_ids(cosypose_rgb, frames_prediction[i], K)
-            cv2.putText(cosypose_rgb, 'cosypose', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
+            # draw_detection_ids(cosypose_rgb, frames_prediction[i], K)
+            # cv2.putText(cosypose_rgb, 'cosypose', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
 
             renderings_gtsam = rendering(frames_refined_prediction[i], renderer, K, rgb.shape[:2])
             gtsam_rgb = renderings_gtsam.rgb
-            draw_track_ids(gtsam_rgb, frames_refined_prediction[i], K)
-            cv2.putText(gtsam_rgb, 'gtsam_latest', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
+            # draw_track_ids(gtsam_rgb, frames_refined_prediction[i], K)
+            # cv2.putText(gtsam_rgb, 'gtsam_latest', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
 
             # renderings_gtsam_swap = rendering(frames_refined_prediction_swap[i], renderer, K, rgb.shape[:2])
             # gtsam_rgb_swap = renderings_gtsam_swap.rgb
@@ -355,7 +356,9 @@ def main():
             # cv2.putText(gtsam_rgb_swap, 'gtsam_swap', (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (1, 1, 1), 2, cv2.LINE_AA)
 
             # save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb])
-            save_prediction_img(output_dir, img_name, rgb, [renderings_cosypose.rgb, gtsam_rgb], show_raw_rgb=False)
+            # save_prediction_img(output_dir, img_name, rgb, [cosypose_rgb], show_raw_rgb=False)
+            # save_prediction_img(output_dir, img_name, rgb, [gtsam_rgb], show_raw_rgb=False)
+            save_prediction_img(output_dir, img_name, rgb, [cosypose_rgb, gtsam_rgb], show_raw_rgb=False)
             print(f"\r({i+1}/{len(img_names)})", end='')
 
 

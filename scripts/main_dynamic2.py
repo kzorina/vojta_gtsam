@@ -239,34 +239,34 @@ if __name__ == "__main__":
     # bare_minimum_example()
     # example_with_vizualization()
     # example_on_frames_prediction()
-    # refine_ysbv_inference(Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv"), 50)
-    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
-    # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/hopeVideo")
-    DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
+    # refine_ysbv_inference(Path("/mnt/Data/HappyPose_Data/bop_datasets/ycbv"), 50)
+    # DATASETS_PATH = Path("/mnt/Data/HappyPose_Data/bop_datasets/ycbv")
+    # DATASETS_PATH = Path("/mnt/Data/HappyPose_Data/bop_datasets/hopeVideo")
+    DATASETS_PATH = Path("/mnt/Data/HappyPose_Data/bop_datasets")
     # DATASET_NAME = "SynthStatic"
-    # DATASET_NAME = "hopeVideo"
+    DATASET_NAME = "hopeVideo"
     # DATASET_NAME = "SynthDynamic"
-    DATASET_NAME = "SynthDynamicOcclusion"
+    # DATASET_NAME = "SynthDynamicOcclusion"
     # DATASET_NAME = "SynthTest"
 
     DATASET_PATH = DATASETS_PATH / DATASET_NAME
     # datasets = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
-    # datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    datasets = [0, 1, 2]
+    datasets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # datasets = [0, 1, 2]
     # datasets = [0]
     __refresh_dir(DATASETS_PATH / DATASET_NAME / "ablation")
     pool = multiprocessing.Pool(processes=15)
 
     # for ws in [2, 5, 10, 20]:
     for mod in [1]:
-        for ws in [20]:
+        for ws in [3]:
             for ort in [10]:
                 # for tvt in [0.0000025, 0.000005, 0.00001]:
-                for tvt in [0.000025]:
-                    for Rvt in [0.001]:
+                for tvt in [0.00025]:
+                    for Rvt in [0.0022]:
                     # for Rvt in [0.00125, 0.0015, 0.00175]:
                     #     for cov_drift_lin_vel in [1, 0.5, 0.1, 0.05, 0.01, 0.001]:
-                        for cov_drift_lin_vel in [1]:
+                        for cov_drift_lin_vel in [0.1]:
                             # for cov_drift_ang_vel in [2.0, 1.0, 0.5]:
                             for cov_drift_ang_vel in [1]:
                                 for cov2_t in [0.000000001]:
@@ -283,7 +283,8 @@ if __name__ == "__main__":
                                                                        t_validity_treshold=tvt,
                                                                        R_validity_treshold=Rvt,
                                                                        hysteresis_coef=hyster,
-                                                                       velocity_prior_sigma=10)
+                                                                       velocity_prior_sigma=10,
+                                                                       reject_overlaps=0.05)
                                             print(f"{mod},{ort}, {tvt:.8f}, {Rvt:.8f}, {cov_drift_lin_vel:.8f}, {cov_drift_ang_vel:.8f}, {cov2_t:.8f}, {cov2_R:.8f}")
                                             output_name = f'gtsam_{DATASET_NAME}-test_{mod}_{str(sam_settings)}_.csv'
 
@@ -293,6 +294,6 @@ if __name__ == "__main__":
     pool.join()
 
     # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction_mod6.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
-    merge_inferences(DATASET_PATH, [0, 1, 2], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
+    merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
     print(f"elapsed time: {time.time() - start_time:.2f} s")
     # main()

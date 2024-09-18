@@ -18,7 +18,7 @@ def load_scene_obj_ids(scene_path):
         for idx in range(len(data[str(frame)])):
             obj_id = data[str(frame)][idx]["obj_id"]
             obj_visib_fract = gt_info[str(frame)][idx]["visib_fract"]
-            if obj_visib_fract > 0.001:
+            if obj_visib_fract > 0.05:
                 entry[obj_id] = entry[obj_id] + 1
                 targets_count += 1
             else:
@@ -32,7 +32,7 @@ def __export_json(data, path):
     with open(path, "w") as file:
         json.dump(data, file, indent=1)
 def main():
-    DATASETS_DIR = Path("/media/vojta/Data/HappyPose_Data/bop_datasets")
+    DATASETS_DIR = Path("/mnt/Data/HappyPose_Data/bop_datasets")
     DATASET_NAME = "hopeVideo"
     # DATASET_NAME = "SynthStatic"
     # DATASET_NAME = "SynthStaticDummy"
