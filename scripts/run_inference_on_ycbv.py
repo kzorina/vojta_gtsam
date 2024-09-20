@@ -96,13 +96,13 @@ HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
 
 
 
-METHOD_NAME = 'cosy'
-# METHOD_NAME = 'mega'
+# METHOD_NAME = 'cosy'
+METHOD_NAME = 'mega'
 
 DS_NAME = "ycbv"
 # DS_NAME = "hope"
 OBJECT_NAMES = YCBV_OBJECT_NAMES if DS_NAME == 'ycbv' else HOPE_OBJECT_NAMES
-COMMENT = 'synt_real_0.0_threshold'
+COMMENT = '0.0_threshold'
 # logger = get_logger(__name__)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
