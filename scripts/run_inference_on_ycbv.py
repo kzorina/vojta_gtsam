@@ -259,6 +259,7 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
     start_time = time.time()
     all_predictions = []
     all_px_counts = []
+    all_tensor_predictions = []
     for i in range(len(img_names)):
         K = scene_camera[i]["cam_K"]
 
@@ -269,11 +270,11 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
         observation = data_to_observation(rgb, depth, camera_data)
 
         # Common API between cosypose and megapose pose estimator
-        detections = detector.get_detections(observation, output_masks=True, detection_th=0.7, mask_th=0.7)
-        # detections = detector.get_detections(observation, output_masks=True)
+        # detections = detector.get_detections(observation, output_masks=True, detection_th=0.7)
+        detections = detector.get_detections(observation, output_masks=True)
         final_preds, all_preds = pose_estimator.run_inference_pipeline(observation, detections)
         predictions = final_preds.cpu()
-
+        all_tensor_predictions.append(predictions.clone())
         if i == 0:
             mesh_units = 'mm'
             rigid_objects = []
@@ -323,6 +324,7 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
     # print("PREDICTIONS NOT SAVED!!! REMOVE A COMMENT!!!")
     save_preditions_data(dataset_dir / f"{METHOD_NAME}_{COMMENT}_frames_prediction.p", all_predictions)
     save_preditions_data(dataset_dir / f"{METHOD_NAME}_{COMMENT}_frames_px_counts.p", all_px_counts)
+    save_preditions_data(dataset_dir / f"{METHOD_NAME}_{COMMENT}_tensor_predictions.p", all_tensor_predictions)
     # method_dataset-subset_blabla
     export_bop(convert_frames_to_bop({DATASET_NAME: all_predictions}), dataset_dir / f"{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv")
 
@@ -344,8 +346,9 @@ def main():
 
   
     # DATASET_NAMES = ["000048"]
-    # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]  # ycbv
-    DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052"]
+    DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]  # ycbv
+    # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052"]
+    # DATASET_NAMES = ["000053", "000054", "000055", "000056", "000057", "000058", "000059"]
     # DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]  # hope, synth
 
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
@@ -390,13 +393,14 @@ def main():
             # file_name_v2 = f"/home/ros/kzorina/vojtas/ycbv/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv"
             # file_name = file_name_v1 if os.path.exists(file_name_v1) else file_name_v2
             file_name = f"/home/ros/kzorina/vojtas/ycbv/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv"
+            print('processing ', file_name)
             with open(file_name, 'r') as infile:
                 if i != 0:
                     infile.readline()
                 reader = csv.reader(infile)
                 for row in reader:
                     writer.writerow(row)
-
+    print("saved merged ffile to ", output_file)
     # merge_inferences(DATASET_PATH, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frames_prediction.p", f'cosypose_{DATASET_NAME}-test.csv', dataset_type)
 
 if __name__ == "__main__":
