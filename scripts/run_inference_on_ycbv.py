@@ -102,7 +102,7 @@ METHOD_NAME = 'cosy'
 DS_NAME = "ycbv"
 # DS_NAME = "hope"
 OBJECT_NAMES = YCBV_OBJECT_NAMES if DS_NAME == 'ycbv' else HOPE_OBJECT_NAMES
-COMMENT = '0.7_threshold'
+COMMENT = 'synt_real_0.0_threshold'
 # logger = get_logger(__name__)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -348,7 +348,7 @@ def main():
     # DATASET_NAMES = ["000048"]
     DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]  # ycbv
     # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052"]
-    # DATASET_NAMES = ["000053", "000054", "000055", "000056", "000057", "000058", "000059"]
+    # DATASET_NAMES = ["000058", "000059"]
     # DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]  # hope, synth
 
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/ycbv")
@@ -358,7 +358,7 @@ def main():
     object_dataset = make_object_dataset(DS_NAME)
 
     if METHOD_NAME == 'cosy':
-        CosyPose = CosyPoseWrapper(dataset_name=DS_NAME, n_workers=0, renderer_type='bullet')
+        CosyPose = CosyPoseWrapper(dataset_name=DS_NAME, n_workers=0, renderer_type='bullet', load_synth_real=True)
         detector = CosyPose.detector
         pose_estimator = CosyPose.pose_predictor
     elif METHOD_NAME == 'mega':
