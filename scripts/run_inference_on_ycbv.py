@@ -275,25 +275,25 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
         final_preds, all_preds = pose_estimator.run_inference_pipeline(observation, detections)
         predictions = final_preds.cpu()
         all_tensor_predictions.append(predictions.clone())
-        if i == 0:
-            mesh_units = 'mm'
-            rigid_objects = []
-            for obj_id in YCBV_OBJECT_NAMES.keys():
-                mesh_path = dataset_dir.parent.parent / f"models/{obj_id}.ply"
-                rigid_objects.append(RigidObject(label=obj_id, mesh_path=mesh_path, mesh_units=mesh_units))
-            # rigid_objects = [RigidObject(label=obj_id, mesh_path=f"/home/ros/kzorina/vojtas/ycbv/test/000048/models/{obj_id}.ply", mesh_units=mesh_units) for obj_id in YCBV_OBJECT_NAMES.keys()]
-            # TODO: fix mesh units (old TODO)
-            rigid_object_dataset = RigidObjectDataset(rigid_objects)
-            renderer = Panda3dSceneRenderer(rigid_object_dataset)
-            renderings = rendering(predictions, dataset_dir, renderer, K=K)
+        # if i == 0:
+        #     mesh_units = 'mm'
+        #     rigid_objects = []
+        #     for obj_id in YCBV_OBJECT_NAMES.keys():
+        #         mesh_path = dataset_dir.parent.parent / f"models/{obj_id}.ply"
+        #         rigid_objects.append(RigidObject(label=obj_id, mesh_path=mesh_path, mesh_units=mesh_units))
+        #     # rigid_objects = [RigidObject(label=obj_id, mesh_path=f"/home/ros/kzorina/vojtas/ycbv/test/000048/models/{obj_id}.ply", mesh_units=mesh_units) for obj_id in YCBV_OBJECT_NAMES.keys()]
+        #     # TODO: fix mesh units (old TODO)
+        #     rigid_object_dataset = RigidObjectDataset(rigid_objects)
+        #     renderer = Panda3dSceneRenderer(rigid_object_dataset)
+        #     renderings = rendering(predictions, dataset_dir, renderer, K=K)
 
-            # save_prediction_img(dataset_dir / "output_bbox", img_name, rgb, renderings.rgb, predictions.tensors['boxes_crop'].data.numpy())
-            save_prediction_img(dataset_dir / "output_bbox", img_name, rgb, renderings.rgb, predictions.tensors['boxes_rend'].data.numpy())
+        #     # save_prediction_img(dataset_dir / "output_bbox", img_name, rgb, renderings.rgb, predictions.tensors['boxes_crop'].data.numpy())
+        #     save_prediction_img(dataset_dir / "output_bbox", img_name, rgb, renderings.rgb, predictions.tensors['boxes_rend'].data.numpy())
 
-            masks = detections.masks.sum(0).cpu().numpy().astype(np.uint8)*20
-            masks_rgb = cv2.cvtColor(masks, cv2.COLOR_GRAY2RGB)
-            save_prediction_img(
-                dataset_dir / "output_mask", img_name, rgb, masks_rgb, predictions.tensors['boxes_rend'].data.numpy())
+        #     masks = detections.masks.sum(0).cpu().numpy().astype(np.uint8)*20
+        #     masks_rgb = cv2.cvtColor(masks, cv2.COLOR_GRAY2RGB)
+        #     save_prediction_img(
+        #         dataset_dir / "output_mask", img_name, rgb, masks_rgb, predictions.tensors['boxes_rend'].data.numpy())
 
         # if i == 0:
         #     renderer = pose_estimator.refiner_model.renderer
