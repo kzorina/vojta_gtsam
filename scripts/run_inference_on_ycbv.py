@@ -99,10 +99,10 @@ HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
 # METHOD_NAME = 'cosy'
 METHOD_NAME = 'mega'
 
-DS_NAME = "ycbv"
-# DS_NAME = "hope"
+# DS_NAME = "ycbv"
+DS_NAME = "hope"
 OBJECT_NAMES = YCBV_OBJECT_NAMES if DS_NAME == 'ycbv' else HOPE_OBJECT_NAMES
-COMMENT = '0.0_threshold'
+COMMENT = '0.7_threshold'
 # logger = get_logger(__name__)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -270,8 +270,8 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
         observation = data_to_observation(rgb, depth, camera_data)
 
         # Common API between cosypose and megapose pose estimator
-        # detections = detector.get_detections(observation, output_masks=True, detection_th=0.7)
-        detections = detector.get_detections(observation, output_masks=True)
+        detections = detector.get_detections(observation, output_masks=True, detection_th=0.7)
+        # detections = detector.get_detections(observation, output_masks=True)
         final_preds, all_preds = pose_estimator.run_inference_pipeline(observation, detections)
         predictions = final_preds.cpu()
         all_tensor_predictions.append(predictions.clone())
@@ -343,10 +343,13 @@ def main():
     DATASETS_PATH = Path("/home/ros/kzorina/vojtas/ycbv")
 
     # DS_NAME used to load the correct object models and detector/pose estimators weights
-
-  
+    scenes_dict = {
+        'hope': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        'ycbv': [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
+    }
+    SCENE_NAMES =[f"0000{sc:0>2}" for sc in scenes_dict[DS_NAME]]
     # DATASET_NAMES = ["000048"]
-    DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]  # ycbv
+    # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052", "000053", "000054", "000055", "000056", "000057", "000058", "000059"]  # ycbv
     # DATASET_NAMES = ["000048", "000049", "000050", "000051", "000052"]
     # DATASET_NAMES = ["000058", "000059"]
     # DATASET_NAMES = ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008", "000009"]  # hope, synth
@@ -377,9 +380,9 @@ def main():
 
     # dataset_name = "dynamic1"
     # dataset_path = Path(__file__).parent.parent / "datasets" / dataset_name
-    for DATASET_NAME in DATASET_NAMES:
-        print(f"{DATASETS_PATH/DATASET_NAME}:")
-        DATASET_PATH = DATASETS_PATH / "test" / DATASET_NAME
+    for SCENE_ID in SCENE_NAMES:
+        print(f"{DATASETS_PATH/SCENE_ID}:")
+        DATASET_PATH = DATASETS_PATH / "test" / SCENE_ID
         __refresh_dir(DATASET_PATH / "output")
         run_inference(DATASET_PATH, detector, pose_estimator)
     import csv
@@ -388,7 +391,7 @@ def main():
     # Merge CSV files
     with open(output_file, 'w', newline='') as outfile:
         writer = csv.writer(outfile)
-        for i, test_id in enumerate([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]):
+        for i, test_id in enumerate(scenes_dict[DS_NAME]):
             # file_name_v1 = f"/home/ros/kzorina/vojtas/ycbv/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_frames_prediction_{COMMENT}.csv"
             # file_name_v2 = f"/home/ros/kzorina/vojtas/ycbv/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv"
             # file_name = file_name_v1 if os.path.exists(file_name_v1) else file_name_v2
