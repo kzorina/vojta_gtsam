@@ -141,8 +141,10 @@ def rendering(predictions, dataset_dir, renderer, K=None):
     # for idx, rough_label in zip(idxs, labels):
     for idx, rough_label in enumerate(labels):
         pred = predictions.poses[idx].numpy()
-        # label = OBJECT_NAMES[rough_label.split("-")[1]]  # (KZ) was here before... for hope? 
-        label = rough_label.split("-")[1]
+        if DS_NAME == 'ycbv':
+            label = rough_label.split("-")[1]
+        else:
+            label = OBJECT_NAMES[rough_label.split("-")[1]]  # (KZ) was here before... for hope?
         object_datas.append(ObjectData(label=label, TWO=Transform(pred)))
     camera_data, object_datas = convert_scene_observation_to_panda3d(camera_data, object_datas)
     light_datas = len(labels) * [
