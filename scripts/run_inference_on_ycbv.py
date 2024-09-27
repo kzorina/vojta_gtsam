@@ -337,7 +337,10 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
     save_preditions_data(dataset_dir / f"{METHOD_NAME}_{COMMENT}_frames_px_counts.p", all_px_counts)
     save_preditions_data(dataset_dir / f"{METHOD_NAME}_{COMMENT}_tensor_predictions.p", all_tensor_predictions)
     # method_dataset-subset_blabla
-    export_bop(convert_frames_to_bop({DATASET_NAME: all_predictions}), dataset_dir / f"{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv")
+    export_bop(convert_frames_to_bop(
+        frames={DATASET_NAME: all_predictions},
+        dataset_name=DS_NAME,
+    ),  dataset_dir / f"{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv")
 
 
 def main():
