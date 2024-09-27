@@ -96,13 +96,13 @@ HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
 
 
 
-METHOD_NAME = 'cosy'
-# METHOD_NAME = 'mega'
+# METHOD_NAME = 'cosy'
+METHOD_NAME = 'mega'
 
-DS_NAME = "ycbv"
-# DS_NAME = "hope"
+# DS_NAME = "ycbv"
+DS_NAME = "hope"
 OBJECT_NAMES = YCBV_OBJECT_NAMES if DS_NAME == 'ycbv' else HOPE_OBJECT_NAMES
-COMMENT = '0.7-threshold-new-run'
+COMMENT = '0.7-threshold'
 # logger = get_logger(__name__)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -272,7 +272,7 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
         # Common API between cosypose and megapose pose estimator
         detections = detector.get_detections(observation, output_masks=True, detection_th=0.7)
         # detections = detector.get_detections(observation, output_masks=True)
-        final_preds, all_preds = pose_estimator.run_inference_pipeline(observation, detections)
+        final_preds, _ = pose_estimator.run_inference_pipeline(observation, detections)
         predictions = final_preds.cpu()
         all_tensor_predictions.append(predictions.clone())
         # if i == 0:
@@ -307,7 +307,7 @@ def run_inference(dataset_dir: Path, detector: Detector, pose_estimator) -> None
         #     save_prediction_img(dataset_dir / "output_mask", img_name, rgb, masks_rgb, predictions.tensors['boxes_rend'].data.numpy())
         
         poses, bboxes = predictions_to_dict(predictions, detections)
-        # breakpoint()
+        breakpoint()
         all_predictions.append(poses)
         all_px_counts.append(bboxes)
         del observation
