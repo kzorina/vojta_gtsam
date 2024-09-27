@@ -100,7 +100,7 @@ HOPE_OBJECT_NAMES = {"obj_000001": "AlphabetSoup",
 METHOD_NAME = 'mega'
 
 # DS_NAME = "ycbv"
-DS_NAME = "hopeVideo"
+DS_NAME = "hope"
 OBJECT_NAMES = YCBV_OBJECT_NAMES if DS_NAME == 'ycbv' else HOPE_OBJECT_NAMES
 COMMENT = '0.7_threshold'
 # logger = get_logger(__name__)
@@ -344,7 +344,7 @@ def main():
 
     # DS_NAME used to load the correct object models and detector/pose estimators weights
     scenes_dict = {
-        'hopeVideo': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        'hope': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         'ycbv': [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
     }
     SCENE_NAMES =[f"0000{sc:0>2}" for sc in scenes_dict[DS_NAME]]
@@ -368,7 +368,7 @@ def main():
         from happypose.toolbox.utils.load_model import load_named_model
         from happypose.toolbox.inference.utils import load_detector
         DETECTOR_RUN_IDS = {
-            'hopeVideo': "detector-bop-hope-pbr--15246",
+            'hope': "detector-bop-hope-pbr--15246",
             'ycbv': "detector-bop-ycbv-pbr--970850",
         }
         detector = load_detector(run_id=DETECTOR_RUN_IDS[DS_NAME], device=device)
