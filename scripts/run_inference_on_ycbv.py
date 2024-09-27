@@ -340,7 +340,8 @@ def main():
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthTest")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthDynamic")
     # DATASETS_PATH = Path("/media/vojta/Data/HappyPose_Data/bop_datasets/SynthDynamicOcclusion")
-    DATASETS_PATH = Path("/home/ros/kzorina/vojtas/ycbv")
+    ds_dir = 'ycbv' if DS_NAME == 'ycbv' else 'hopeVideo'
+    DATASETS_PATH = Path(f"/home/ros/kzorina/vojtas/{ds_dir}")
 
     # DS_NAME used to load the correct object models and detector/pose estimators weights
     scenes_dict = {
@@ -386,7 +387,7 @@ def main():
         __refresh_dir(DATASET_PATH / "output")
         run_inference(DATASET_PATH, detector, pose_estimator)
     import csv
-    output_file = f'/home/ros/kzorina/vojtas/ycbv/{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv'
+    output_file = str(DATASETS_PATH / f'{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv')
 
     # Merge CSV files
     with open(output_file, 'w', newline='') as outfile:
@@ -395,7 +396,7 @@ def main():
             # file_name_v1 = f"/home/ros/kzorina/vojtas/ycbv/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_frames_prediction_{COMMENT}.csv"
             # file_name_v2 = f"/home/ros/kzorina/vojtas/ycbv/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv"
             # file_name = file_name_v1 if os.path.exists(file_name_v1) else file_name_v2
-            file_name = f"/home/ros/kzorina/vojtas/ycbv/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv"
+            file_name = output_file = str(DATASETS_PATH / f'/test/0000{test_id}/{METHOD_NAME}_{DS_NAME}-test_{COMMENT}_frames_prediction.csv')
             print('processing ', file_name)
             with open(file_name, 'r') as infile:
                 if i != 0:
